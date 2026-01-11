@@ -106,7 +106,9 @@ function displayQuestion() {
 
     elements.questionNumber.textContent =
         `問題 ${state.currentIndex + 1} / ${state.currentQuestions.length}`;
-    elements.questionCategory.textContent = question.category;
+    const chapter = chapters[question.chapter];
+    const sectionName = chapter.sections[question.section] || "";
+    elements.questionCategory.textContent = `${chapter.title} / ${sectionName}`;
 
     // 穴埋め部分を変換
     const html = parseQuestionText(question.text, question.id);
