@@ -3,8 +3,12 @@ const state = {
     currentQuestions: [],
     currentIndex: 0,
     completedQuestions: new Set(),
-    revealedBlanks: new Set()
+    revealedBlanks: new Set(),
+    selectedChapters: new Set()
 };
+
+// 設定
+const QUESTIONS_PER_QUIZ = 10;
 
 // DOM要素
 const elements = {
@@ -16,7 +20,9 @@ const elements = {
     showAllBtn: document.getElementById('showAllBtn'),
     retryBtn: document.getElementById('retryBtn'),
     resetBtn: document.getElementById('resetBtn'),
-    shuffleOption: document.getElementById('shuffleOption'),
+    chapterList: document.getElementById('chapterList'),
+    selectAllBtn: document.getElementById('selectAllBtn'),
+    deselectAllBtn: document.getElementById('deselectAllBtn'),
     questionNumber: document.getElementById('questionNumber'),
     questionCategory: document.getElementById('questionCategory'),
     questionText: document.getElementById('questionText'),
@@ -31,6 +37,7 @@ const STORAGE_KEY = 'quizProgress';
 function init() {
     loadProgress();
     updateProgressDisplay();
+    generateChapterList();
     setupEventListeners();
 }
 
@@ -41,6 +48,8 @@ function setupEventListeners() {
     elements.showAllBtn.addEventListener('click', showAllBlanks);
     elements.retryBtn.addEventListener('click', retryQuiz);
     elements.resetBtn.addEventListener('click', resetProgress);
+    elements.selectAllBtn.addEventListener('click', selectAllChapters);
+    elements.deselectAllBtn.addEventListener('click', deselectAllChapters);
 }
 
 // 進捗の読み込み
@@ -75,15 +84,105 @@ function updateProgressDisplay() {
     elements.progress.textContent = `${completed} / ${total} 問完了`;
 }
 
+// 章リストを生成
+function generateChapterList() {
+    elements.chapterList.innerHTML = '';
+
+    // 各章の問題数をカウント
+    const questionCountByChapter = {};
+    questions.forEach(q => {
+        questionCountByChapter[q.chapter] = (questionCountByChapter[q.chapter] || 0) + 1;
+    });
+
+    // 章リストを生成
+    Object.keys(chapters).forEach(chapterId => {
+        const chapter = chapters[chapterId];
+        const questionCount = questionCountByChapter[chapterId] || 0;
+
+        // 問題がない章はスキップ
+        if (questionCount === 0) return;
+
+        const div = document.createElement('div');
+        div.className = 'chapter-item selected';
+        div.innerHTML = `
+            <input type="checkbox" id="chapter-${chapterId}" checked>
+            <label for="chapter-${chapterId}">${chapter.title}</label>
+            <span class="question-badge">${questionCount}問</span>
+        `;
+
+        const checkbox = div.querySelector('input');
+        checkbox.addEventListener('change', () => {
+            toggleChapter(chapterId, checkbox.checked);
+            div.classList.toggle('selected', checkbox.checked);
+        });
+
+        div.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'INPUT') {
+                checkbox.checked = !checkbox.checked;
+                toggleChapter(chapterId, checkbox.checked);
+                div.classList.toggle('selected', checkbox.checked);
+            }
+        });
+
+        elements.chapterList.appendChild(div);
+
+        // 初期状態ですべて選択
+        state.selectedChapters.add(parseInt(chapterId));
+    });
+}
+
+// 章の選択を切り替え
+function toggleChapter(chapterId, selected) {
+    if (selected) {
+        state.selectedChapters.add(parseInt(chapterId));
+    } else {
+        state.selectedChapters.delete(parseInt(chapterId));
+    }
+}
+
+// すべての章を選択
+function selectAllChapters() {
+    const checkboxes = elements.chapterList.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+        const chapterId = parseInt(checkbox.id.replace('chapter-', ''));
+        state.selectedChapters.add(chapterId);
+        checkbox.closest('.chapter-item').classList.add('selected');
+    });
+}
+
+// すべての章を解除
+function deselectAllChapters() {
+    const checkboxes = elements.chapterList.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+        const chapterId = parseInt(checkbox.id.replace('chapter-', ''));
+        state.selectedChapters.delete(chapterId);
+        checkbox.closest('.chapter-item').classList.remove('selected');
+    });
+}
+
 // クイズ開始
 function startQuiz() {
-    // 問題をコピー
-    state.currentQuestions = [...questions];
-
-    // シャッフルオプション
-    if (elements.shuffleOption.checked) {
-        shuffleArray(state.currentQuestions);
+    // 選択された章がない場合はアラート
+    if (state.selectedChapters.size === 0) {
+        alert('出題範囲を1つ以上選択してください');
+        return;
     }
+
+    // 選択された章の問題をフィルタリング
+    const filteredQuestions = questions.filter(q =>
+        state.selectedChapters.has(q.chapter)
+    );
+
+    if (filteredQuestions.length === 0) {
+        alert('選択した章に問題がありません');
+        return;
+    }
+
+    // シャッフルしてランダムに10問選択
+    shuffleArray(filteredQuestions);
+    state.currentQuestions = filteredQuestions.slice(0, QUESTIONS_PER_QUIZ);
 
     state.currentIndex = 0;
     state.revealedBlanks.clear();

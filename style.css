@@ -100,6 +100,109 @@ main {
     cursor: pointer;
 }
 
+/* Chapter Selection */
+.chapter-selection {
+    margin: 25px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    text-align: left;
+}
+
+.chapter-selection h3 {
+    color: #333;
+    font-size: 1rem;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.chapter-toggle-all {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.btn-small {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-small:hover {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.chapter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.chapter-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+}
+
+.chapter-item:hover {
+    border-color: #667eea;
+}
+
+.chapter-item.selected {
+    background: #e8f0fe;
+    border-color: #667eea;
+}
+
+.chapter-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.chapter-item label {
+    font-size: 0.9rem;
+    color: #444;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.chapter-item .question-badge {
+    margin-left: auto;
+    background: #667eea;
+    color: white;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.question-count {
+    color: #666;
+    font-size: 0.95rem;
+}
+
+.question-count strong {
+    color: #667eea;
+}
+
 /* Quiz Screen */
 .question-header {
     display: flex;

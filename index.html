@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="穴埋め問題集">
-    <title>穴埋め問題集</title>
+    <title>不動産鑑定評価基準</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.svg">
     <link rel="stylesheet" href="style.css">
@@ -15,7 +15,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>穴埋め問題集</h1>
+            <h1>不動産鑑定評価基準</h1>
             <div class="progress-info">
                 <span id="progress">0 / 0 問完了</span>
                 <button id="resetBtn" class="btn-secondary">リセット</button>
@@ -26,11 +26,20 @@
             <div id="startScreen" class="screen">
                 <h2>学習を始めましょう</h2>
                 <p>穴埋め部分をクリックすると答えが表示されます</p>
+
+                <div class="chapter-selection">
+                    <h3>出題範囲を選択</h3>
+                    <div class="chapter-toggle-all">
+                        <button id="selectAllBtn" class="btn-small">すべて選択</button>
+                        <button id="deselectAllBtn" class="btn-small">すべて解除</button>
+                    </div>
+                    <div id="chapterList" class="chapter-list">
+                        <!-- 章リストはJSで生成 -->
+                    </div>
+                </div>
+
                 <div class="start-options">
-                    <label>
-                        <input type="checkbox" id="shuffleOption" checked>
-                        問題をランダムに出題
-                    </label>
+                    <p class="question-count">選択した章からランダムに<strong>10問</strong>出題されます</p>
                 </div>
                 <button id="startBtn" class="btn-primary">スタート</button>
             </div>
