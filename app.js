@@ -1,7 +1,7 @@
 // パスワード設定（SHA-256ハッシュ）
 // 下の行のハッシュ値を変更してパスワードを設定してください
 // ハッシュ生成: https://emn178.github.io/online-tools/sha256.html
-const PASSWORD_HASH = '544359b1e7d59bc9404cf06b421d3643b8d2803ce13d6786026b9870e412cc6a';
+// const PASSWORD_HASH = '544359b1e7d59bc9404cf06b421d3643b8d2803ce13d6786026b9870e412cc6a';
 
 // アプリケーションの状態
 const state = {
@@ -18,11 +18,12 @@ const QUESTIONS_PER_QUIZ = 10;
 
 // DOM要素
 const elements = {
-    authScreen: document.getElementById('authScreen'),
+    // 認証を無効化
+    // authScreen: document.getElementById('authScreen'),
     appContainer: document.getElementById('appContainer'),
-    passwordInput: document.getElementById('passwordInput'),
-    authBtn: document.getElementById('authBtn'),
-    authError: document.getElementById('authError'),
+    // passwordInput: document.getElementById('passwordInput'),
+    // authBtn: document.getElementById('authBtn'),
+    // authError: document.getElementById('authError'),
     startScreen: document.getElementById('startScreen'),
     quizScreen: document.getElementById('quizScreen'),
     resultScreen: document.getElementById('resultScreen'),
@@ -47,9 +48,10 @@ const AUTH_KEY = 'quizAuth';
 
 // 初期化
 function init() {
-    // 認証状態を確認
-    checkAuthStatus();
-    setupAuthListeners();
+    // 認証を無効化 - 直接アプリを表示
+    // checkAuthStatus();
+    // setupAuthListeners();
+    initApp();
 }
 
 // アプリの初期化（認証後）
@@ -60,13 +62,13 @@ function initApp() {
     setupEventListeners();
 }
 
-// 認証イベントリスナー
-function setupAuthListeners() {
-    elements.authBtn.addEventListener('click', authenticate);
-    elements.passwordInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') authenticate();
-    });
-}
+// 認証イベントリスナー（認証を無効化）
+// function setupAuthListeners() {
+//     elements.authBtn.addEventListener('click', authenticate);
+//     elements.passwordInput.addEventListener('keypress', (e) => {
+//         if (e.key === 'Enter') authenticate();
+//     });
+// }
 
 // イベントリスナーの設定
 function setupEventListeners() {
@@ -79,45 +81,45 @@ function setupEventListeners() {
     elements.deselectAllBtn.addEventListener('click', deselectAllChapters);
 }
 
-// SHA-256ハッシュ関数
-async function sha256(message) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+// SHA-256ハッシュ関数（認証を無効化）
+// async function sha256(message) {
+//     const msgBuffer = new TextEncoder().encode(message);
+//     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+//     const hashArray = Array.from(new Uint8Array(hashBuffer));
+//     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// }
 
-// 認証状態の確認
-function checkAuthStatus() {
-    const authSession = sessionStorage.getItem(AUTH_KEY);
-    if (authSession === 'authenticated') {
-        showApp();
-    }
-}
+// 認証状態の確認（認証を無効化）
+// function checkAuthStatus() {
+//     const authSession = sessionStorage.getItem(AUTH_KEY);
+//     if (authSession === 'authenticated') {
+//         showApp();
+//     }
+// }
 
-// 認証処理
-async function authenticate() {
-    const password = elements.passwordInput.value;
-    const hash = await sha256(password);
+// 認証処理（認証を無効化）
+// async function authenticate() {
+//     const password = elements.passwordInput.value;
+//     const hash = await sha256(password);
+//
+//     if (hash === PASSWORD_HASH) {
+//         sessionStorage.setItem(AUTH_KEY, 'authenticated');
+//         state.isAuthenticated = true;
+//         elements.authError.classList.add('hidden');
+//         showApp();
+//     } else {
+//         elements.authError.classList.remove('hidden');
+//         elements.passwordInput.value = '';
+//         elements.passwordInput.focus();
+//     }
+// }
 
-    if (hash === PASSWORD_HASH) {
-        sessionStorage.setItem(AUTH_KEY, 'authenticated');
-        state.isAuthenticated = true;
-        elements.authError.classList.add('hidden');
-        showApp();
-    } else {
-        elements.authError.classList.remove('hidden');
-        elements.passwordInput.value = '';
-        elements.passwordInput.focus();
-    }
-}
-
-// アプリを表示
-function showApp() {
-    elements.authScreen.classList.add('hidden');
-    elements.appContainer.classList.remove('hidden');
-    initApp();
-}
+// アプリを表示（認証を無効化）
+// function showApp() {
+//     elements.authScreen.classList.add('hidden');
+//     elements.appContainer.classList.remove('hidden');
+//     initApp();
+// }
 
 // 進捗の読み込み
 function loadProgress() {
