@@ -1,7 +1,7 @@
 // パスワード設定（SHA-256ハッシュ）
 // 下の行のハッシュ値を変更してパスワードを設定してください
 // ハッシュ生成: https://emn178.github.io/online-tools/sha256.html
-const PASSWORD_HASH = 'a6ce9c477e0b71e11b6db94a274af5bb8f241a5ffbb24bf225ba3c39afe473e1';
+const PASSWORD_HASH = '544359b1e7d59bc9404cf06b421d3643b8d2803ce13d6786026b9870e412cc6a';
 
 // アプリケーションの状態
 const state = {
