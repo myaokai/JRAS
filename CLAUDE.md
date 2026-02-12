@@ -25,7 +25,13 @@ JRAS/
 ├── style.css         # All styling (responsive, 600px breakpoint)
 ├── sw.js             # Service Worker (cache-first offline strategy)
 ├── manifest.json     # PWA manifest
+├── .mcp.json         # MCP server configuration (Playwright)
 ├── .gitignore        # Ignores /data
+├── .claude/
+│   └── agents/
+│       ├── test.md       # Test sub-agent
+│       ├── review.md     # Code review sub-agent
+│       └── ui-check.md   # UI verification sub-agent (Playwright MCP)
 └── icons/
     ├── icon-192.svg  # PWA icon 192x192
     └── icon-512.svg  # PWA icon 512x512
@@ -114,6 +120,24 @@ There is no test framework or automated tests configured.
 ### No Linting/Formatting
 
 There is no ESLint, Prettier, or other code quality tooling configured.
+
+### UI Verification with Playwright MCP
+
+The project is configured with [Playwright MCP](https://github.com/microsoft/playwright-mcp) to allow Claude to interact with the app in a headless browser. Configuration is in `.mcp.json`.
+
+**Available capabilities:**
+- `vision` — screenshot capture
+- `testing` — element/text visibility verification
+
+**Using the UI check agent:**
+
+In Claude Code, use the `/ui-check` agent to run an automated UI verification. The agent will:
+1. Start a local HTTP server (`python3 -m http.server 8080`)
+2. Navigate to the app via Playwright MCP
+3. Verify screen transitions, interactions, and accessibility
+4. Report findings with screenshots
+
+You can also use Playwright MCP tools directly in conversation by saying "use playwright mcp to open http://localhost:8080".
 
 ## Conventions
 
