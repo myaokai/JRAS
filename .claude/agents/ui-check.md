@@ -31,27 +31,78 @@ Playwright CLIを使ってブラウザ上でアプリの動作とUIを確認し�
 このエージェントではPlaywright をNode.jsスクリプトとして実行し、ブラウザ操作を一括で行います。
 MCP経由ではなくCLIで直接実行するため、1回のBash呼び出しで複数操作をまとめて実行でき効率的です。
 
+**サーバーは自動管理:** スクリプト内で HTTP サーバーの起動・停止を行うため、事前にサーバーを起動しておく必要はありません。
+
 ### 基本パターン
 
-Bashツールで以下のようにPlaywrightスクリプトを実行してください:
+Bashツールで以下のようにPlaywrightスクリプトを実行してください。
+サーバーの起動・待機・停止はスクリプト内で完結します:
 
 ```bash
 node -e "
 const { chromium } = require('playwright');
+const { spawn } = require('child_process');
+const http = require('http');
+
+const PORT = 8080;
+const BASE_URL = 'http://localhost:' + PORT;
+const PROJECT_DIR = '/home/user/JRAS';
+
+// ポートが使用中か確認
+function isPortInUse(port) {
+  return new Promise((resolve) => {
+    const req = http.get('http://localhost:' + port, () => resolve(true));
+    req.on('error', () => resolve(false));
+    req.setTimeout(500, () => { req.destroy(); resolve(false); });
+  });
+}
+
+// サーバー起動を待つ
+function waitForServer(port, retries = 10) {
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+    const check = () => {
+      isPortInUse(port).then(ok => {
+        if (ok) return resolve();
+        if (++attempt >= retries) return reject(new Error('サーバー起動タイムアウト'));
+        setTimeout(check, 500);
+      });
+    };
+    check();
+  });
+}
+
 (async () => {
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-  await page.goto('http://localhost:8080');
+  // --- サーバー管理 ---
+  let server = null;
+  let serverStartedByUs = false;
+  const alreadyRunning = await isPortInUse(PORT);
+  if (alreadyRunning) {
+    console.log('[サーバー] ポート' + PORT + 'は既に使用中 — 既存サーバーを利用');
+  } else {
+    console.log('[サーバー] ポート' + PORT + 'で起動中...');
+    server = spawn('python3', ['-m', 'http.server', String(PORT)], { cwd: PROJECT_DIR, stdio: 'ignore' });
+    serverStartedByUs = true;
+    await waitForServer(PORT);
+    console.log('[サーバー] 起動完了');
+  }
 
-  // スクリーンショット
-  await page.screenshot({ path: '/home/user/JRAS/screenshots/screen.png', fullPage: true });
+  try {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    await page.goto(BASE_URL);
 
-  // 要素の取得・検証
-  const title = await page.textContent('h1');
-  console.log('タイトル:', title);
+    // === ここで検証を行う ===
 
-  await browser.close();
-})();
+    await browser.close();
+  } finally {
+    // 自分で起動したサーバーのみ停止
+    if (serverStartedByUs && server) {
+      server.kill();
+      console.log('[サーバー] 停止');
+    }
+  }
+})().catch(e => { console.error('エラー:', e.message); process.exit(1); });
 "
 ```
 
@@ -86,19 +137,11 @@ npx playwright install chromium 2>/dev/null || true
 mkdir -p /home/user/JRAS/screenshots
 ```
 
-### 2. ローカルサーバーの起動
-
-アプリを提供するHTTPサーバーを起動してください:
-
-```bash
-cd /home/user/JRAS && python3 -m http.server 8080 &
-sleep 1
-```
-
-### 3. UI確認の実行
+### 2. UI確認の実行
 
 以下の確認項目をPlaywrightスクリプトで検証してください。
 **1つの `node -e` スクリプトにまとめて実行するのが効率的です。**
+サーバーの起動・停止はスクリプト内で自動的に行われるため、手動での管理は不要です。
 
 #### 確認項目
 
@@ -123,72 +166,119 @@ sleep 1
 ```bash
 node -e "
 const { chromium } = require('playwright');
+const { spawn } = require('child_process');
+const http = require('http');
+
+const PORT = 8080;
+const BASE_URL = 'http://localhost:' + PORT;
+const PROJECT_DIR = '/home/user/JRAS';
+const SS_DIR = PROJECT_DIR + '/screenshots';
+
+function isPortInUse(port) {
+  return new Promise((resolve) => {
+    const req = http.get('http://localhost:' + port, () => resolve(true));
+    req.on('error', () => resolve(false));
+    req.setTimeout(500, () => { req.destroy(); resolve(false); });
+  });
+}
+function waitForServer(port, retries = 10) {
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+    const check = () => {
+      isPortInUse(port).then(ok => {
+        if (ok) return resolve();
+        if (++attempt >= retries) return reject(new Error('サーバー起動タイムアウト'));
+        setTimeout(check, 500);
+      });
+    };
+    check();
+  });
+}
+
 (async () => {
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-
-  // --- スタート画面 ---
-  await page.goto('http://localhost:8080');
-  await page.screenshot({ path: '/home/user/JRAS/screenshots/01-start.png', fullPage: true });
-  console.log('=== スタート画面 ===');
-  console.log('タイトル:', await page.textContent('h1'));
-
-  // 章チェックボックスの確認
-  const chapters = await page.\$\$eval('#chapter-list input[type=checkbox]', els =>
-    els.map(e => ({ id: e.id, checked: e.checked, label: e.parentElement.textContent.trim() }))
-  );
-  console.log('章一覧:', JSON.stringify(chapters, null, 2));
-
-  // 全選択ボタン
-  await page.click('#select-all');
-  const allChecked = await page.\$\$eval('#chapter-list input[type=checkbox]', els => els.every(e => e.checked));
-  console.log('全選択後に全てチェック済み:', allChecked);
-
-  // クイズ開始
-  await page.click('#start-quiz');
-  await page.waitForSelector('#quiz-screen:not(.hidden)', { timeout: 3000 });
-  await page.screenshot({ path: '/home/user/JRAS/screenshots/02-quiz.png', fullPage: true });
-  console.log('\\n=== クイズ画面 ===');
-  console.log('問題テキスト:', (await page.textContent('#question-text')).substring(0, 100));
-
-  // 穴埋めクリック
-  const blanks = await page.\$\$('.blank');
-  console.log('穴埋め数:', blanks.length);
-  if (blanks.length > 0) {
-    await blanks[0].click();
-    const revealed = await blanks[0].evaluate(el => el.classList.contains('revealed'));
-    console.log('クリック後に解答表示:', revealed);
+  let server = null;
+  let serverStartedByUs = false;
+  if (!(await isPortInUse(PORT))) {
+    server = spawn('python3', ['-m', 'http.server', String(PORT)], { cwd: PROJECT_DIR, stdio: 'ignore' });
+    serverStartedByUs = true;
+    await waitForServer(PORT);
+    console.log('[サーバー] 起動完了');
+  } else {
+    console.log('[サーバー] 既存サーバーを利用');
   }
-  await page.screenshot({ path: '/home/user/JRAS/screenshots/03-quiz-revealed.png', fullPage: true });
 
-  // 全表示→次の問題を繰り返して結果画面へ
-  for (let i = 0; i < 10; i++) {
-    await page.click('#show-all');
-    const nextBtn = await page.\$('#next-question');
-    if (nextBtn) {
-      await nextBtn.click();
+  try {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+
+    // --- スタート画面 ---
+    await page.goto(BASE_URL);
+    await page.screenshot({ path: SS_DIR + '/01-start.png', fullPage: true });
+    console.log('=== スタート画面 ===');
+    console.log('タイトル:', await page.textContent('h1'));
+
+    // 章チェックボックスの確認
+    const chapters = await page.\$\$eval('#chapter-list input[type=checkbox]', els =>
+      els.map(e => ({ id: e.id, checked: e.checked, label: e.parentElement.textContent.trim() }))
+    );
+    console.log('章一覧:', JSON.stringify(chapters, null, 2));
+
+    // 全選択ボタン
+    await page.click('#select-all');
+    const allChecked = await page.\$\$eval('#chapter-list input[type=checkbox]', els => els.every(e => e.checked));
+    console.log('全選択後に全てチェック済み:', allChecked);
+
+    // クイズ開始
+    await page.click('#start-quiz');
+    await page.waitForSelector('#quiz-screen:not(.hidden)', { timeout: 3000 });
+    await page.screenshot({ path: SS_DIR + '/02-quiz.png', fullPage: true });
+    console.log('\\n=== クイズ画面 ===');
+    console.log('問題テキスト:', (await page.textContent('#question-text')).substring(0, 100));
+
+    // 穴埋めクリック
+    const blanks = await page.\$\$('.blank');
+    console.log('穴埋め数:', blanks.length);
+    if (blanks.length > 0) {
+      await blanks[0].click();
+      const revealed = await blanks[0].evaluate(el => el.classList.contains('revealed'));
+      console.log('クリック後に解答表示:', revealed);
+    }
+    await page.screenshot({ path: SS_DIR + '/03-quiz-revealed.png', fullPage: true });
+
+    // 全表示→次の問題を繰り返して結果画面へ
+    for (let i = 0; i < 10; i++) {
+      await page.click('#show-all');
+      const nextBtn = await page.\$('#next-question');
+      if (nextBtn) {
+        await nextBtn.click();
+      }
+    }
+    await page.waitForSelector('#result-screen:not(.hidden)', { timeout: 3000 }).catch(() => {});
+    await page.screenshot({ path: SS_DIR + '/04-result.png', fullPage: true });
+    console.log('\\n=== 結果画面 ===');
+    const resultVisible = await page.isVisible('#result-screen');
+    console.log('結果画面表示:', resultVisible);
+
+    // --- レスポンシブ確認 ---
+    await page.goto(BASE_URL);
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.screenshot({ path: SS_DIR + '/05-mobile.png', fullPage: true });
+    console.log('\\n=== モバイル表示 ===');
+    console.log('モバイルスクリーンショット撮影完了');
+
+    await browser.close();
+    console.log('\\n検証完了');
+  } finally {
+    if (serverStartedByUs && server) {
+      server.kill();
+      console.log('[サーバー] 停止');
     }
   }
-  await page.waitForSelector('#result-screen:not(.hidden)', { timeout: 3000 }).catch(() => {});
-  await page.screenshot({ path: '/home/user/JRAS/screenshots/04-result.png', fullPage: true });
-  console.log('\\n=== 結果画面 ===');
-  const resultVisible = await page.isVisible('#result-screen');
-  console.log('結果画面表示:', resultVisible);
-
-  // --- レスポンシブ確認 ---
-  await page.goto('http://localhost:8080');
-  await page.setViewportSize({ width: 375, height: 667 });
-  await page.screenshot({ path: '/home/user/JRAS/screenshots/05-mobile.png', fullPage: true });
-  console.log('\\n=== モバイル表示 ===');
-  console.log('モバイルスクリーンショット撮影完了');
-
-  await browser.close();
-  console.log('\\n検証完了');
 })().catch(e => { console.error('エラー:', e.message); process.exit(1); });
 "
 ```
 
-### 4. スクリーンショットの確認
+### 3. スクリーンショットの確認
 
 撮影したスクリーンショットをReadツールで読み込んで視覚的に確認してください:
 
@@ -200,7 +290,7 @@ const { chromium } = require('playwright');
 /home/user/JRAS/screenshots/05-mobile.png
 ```
 
-### 5. 問題の報告
+### 4. 問題の報告
 
 発見した問題は以下のフォーマットで報告してください:
 
@@ -225,7 +315,7 @@ const { chromium } = require('playwright');
 - Playwrightはヘッドレスモードで動作します（デフォルト）
 - 複数の操作を1つのスクリプトにまとめて実行し、効率的に検証してください
 - スクリーンショットは `/home/user/JRAS/screenshots/` に保存してください
-- テスト完了後、バックグラウンドのHTTPサーバーを停止してください: `kill %1 2>/dev/null`
+- サーバーはスクリプト内で自動起動・自動停止されます。手動管理は不要です
 - `screenshots/` ディレクトリは `.gitignore` に含まれていないため、コミットしないよう注意してください
 - 日本語で報告してください
 - コードの修正は行わず、確認結果の報告のみ行ってください（修正が必要な場合は報告のみ）
