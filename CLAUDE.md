@@ -25,13 +25,12 @@ JRAS/
 ├── style.css         # All styling (responsive, 600px breakpoint)
 ├── sw.js             # Service Worker (cache-first offline strategy)
 ├── manifest.json     # PWA manifest
-├── .mcp.json         # MCP server configuration (Playwright)
 ├── .gitignore        # Ignores /data
 ├── .claude/
 │   └── agents/
 │       ├── test.md       # Test sub-agent
 │       ├── review.md     # Code review sub-agent
-│       └── ui-check.md   # UI verification sub-agent (Playwright MCP)
+│       └── ui-check.md   # UI verification sub-agent (Playwright CLI)
 └── icons/
     ├── icon-192.svg  # PWA icon 192x192
     └── icon-512.svg  # PWA icon 512x512
@@ -121,23 +120,18 @@ There is no test framework or automated tests configured.
 
 There is no ESLint, Prettier, or other code quality tooling configured.
 
-### UI Verification with Playwright MCP
+### UI Verification with Playwright CLI
 
-The project is configured with [Playwright MCP](https://github.com/microsoft/playwright-mcp) to allow Claude to interact with the app in a headless browser. Configuration is in `.mcp.json`.
-
-**Available capabilities:**
-- `vision` — screenshot capture
-- `testing` — element/text visibility verification
+The `/ui-check` agent uses [Playwright](https://playwright.dev/) via Node.js scripts to interact with the app in a headless browser. No MCP server is needed — Playwright runs directly as CLI scripts, which is more efficient for batch operations.
 
 **Using the UI check agent:**
 
 In Claude Code, use the `/ui-check` agent to run an automated UI verification. The agent will:
-1. Start a local HTTP server (`python3 -m http.server 8080`)
-2. Navigate to the app via Playwright MCP
-3. Verify screen transitions, interactions, and accessibility
-4. Report findings with screenshots
-
-You can also use Playwright MCP tools directly in conversation by saying "use playwright mcp to open http://localhost:8080".
+1. Install Playwright if needed (`npx playwright install chromium`)
+2. Start a local HTTP server (`python3 -m http.server 8080`)
+3. Execute Playwright scripts to navigate, interact, and take screenshots
+4. Verify screen transitions, interactions, and responsive layout
+5. Report findings with screenshots saved to `screenshots/`
 
 ## Conventions
 
