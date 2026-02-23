@@ -1,10 +1,10 @@
-const CACHE_NAME = 'quiz-app-v0.0.1';
+const CACHE_NAME = 'quiz-app-v0.0.2';
 const urlsToCache = [
     './',
     './index.html',
     './style.css',
     './app.js',
-    './questions.js',
+    './questions.json',
     './manifest.json',
     './icons/icon-192.svg',
     './icons/icon-512.svg'

@@ -1,7 +1,6 @@
-// パスワード設定（SHA-256ハッシュ）
-// 下の行のハッシュ値を変更してパスワードを設定してください
-// ハッシュ生成: https://emn178.github.io/online-tools/sha256.html
-// const PASSWORD_HASH = '544359b1e7d59bc9404cf06b421d3643b8d2803ce13d6786026b9870e412cc6a';
+// 問題データ（data/questions.jsonからfetchで読み込む）
+let questions = [];
+let chapters = {};
 
 // アプリケーションの状態
 const state = {
@@ -47,7 +46,16 @@ const STORAGE_KEY = 'quizProgress';
 const AUTH_KEY = 'quizAuth';
 
 // 初期化
-function init() {
+async function init() {
+    try {
+        const res = await fetch('./questions.json');
+        const data = await res.json();
+        questions = data.questions;
+        chapters = data.chapters;
+    } catch (e) {
+        console.error('問題データの読み込みに失敗しました', e);
+        return;
+    }
     // 認証を無効化 - 直接アプリを表示
     // checkAuthStatus();
     // setupAuthListeners();
