@@ -26,11 +26,15 @@ JRAS/
 ├── sw.js             # Service Worker (cache-first offline strategy)
 ├── manifest.json     # PWA manifest
 ├── .gitignore        # Ignores /data
+├── scripts/
+│   ├── fetch-kijun.js    # 基準PDFからテキスト抽出
+│   └── generate-questions.js  # テキストから穴埋め問題を自動生成
 ├── .claude/
 │   └── agents/
 │       ├── test.md       # Test sub-agent
 │       ├── review.md     # Code review sub-agent
-│       └── ui-check.md   # UI verification sub-agent (Playwright CLI)
+│       ├── ui-check.md   # UI verification sub-agent (Playwright CLI)
+│       └── fetch-questions.md  # 問題データ取得・生成エージェント
 └── icons/
     ├── icon-192.svg  # PWA icon 192x192
     └── icon-512.svg  # PWA icon 512x512
@@ -132,6 +136,23 @@ In Claude Code, use the `/ui-check` agent to run an automated UI verification. T
 3. Execute Playwright scripts to navigate, interact, and take screenshots
 4. Verify screen transitions, interactions, and responsive layout
 5. Report findings with screenshots saved to `screenshots/`
+
+### Generating Questions from Appraisal Standards
+
+Use the `/fetch-questions` agent or run the scripts manually:
+
+```bash
+# 1. 基準PDFをダウンロードしてテキスト抽出
+npm install pdf-parse
+node scripts/fetch-kijun.js
+
+# 2. テキストから穴埋め問題を自動生成
+node scripts/generate-questions.js
+
+# 3. data/new-questions.js を確認・調整して questions.js に追加
+```
+
+Source: [国土交通省 不動産鑑定評価基準PDF](https://www.mlit.go.jp/common/001204083.pdf)
 
 ## Conventions
 
