@@ -11,47 +11,48 @@ const state = {
     revealedBlanks: new Set(),
     selectedChapters: new Set(),
     selectedExams: new Set(),
-    mode: 'anaume', // 'anaume' | 'kakomon'
+    mode: 'anaume',        // 'anaume' | 'kakomon'
     correctCount: 0,
     answerSelected: false,
+    filterWrong: false,    // 前回の間違いフィルター
+    wrongQuestionIds: [],  // 今セッションで間違えた問題ID
     isAuthenticated: false
 };
 
-// 設定
-const QUESTIONS_PER_QUIZ = 10;
+const QUESTIONS_PER_QUIZ    = 10;
+const STORAGE_KEY           = 'quizProgress';
+const KAKOMON_HISTORY_KEY   = 'kakomonHistory';
 
-// DOM要素
 const elements = {
-    appContainer: document.getElementById('appContainer'),
-    startScreen: document.getElementById('startScreen'),
-    quizScreen: document.getElementById('quizScreen'),
-    resultScreen: document.getElementById('resultScreen'),
-    startBtn: document.getElementById('startBtn'),
-    nextBtn: document.getElementById('nextBtn'),
-    showAllBtn: document.getElementById('showAllBtn'),
-    retryBtn: document.getElementById('retryBtn'),
-    resetBtn: document.getElementById('resetBtn'),
-    chapterList: document.getElementById('chapterList'),
-    selectAllBtn: document.getElementById('selectAllBtn'),
-    deselectAllBtn: document.getElementById('deselectAllBtn'),
-    questionNumber: document.getElementById('questionNumber'),
+    appContainer:     document.getElementById('appContainer'),
+    progressInfo:     document.querySelector('.progress-info'),
+    startScreen:      document.getElementById('startScreen'),
+    quizScreen:       document.getElementById('quizScreen'),
+    resultScreen:     document.getElementById('resultScreen'),
+    startBtn:         document.getElementById('startBtn'),
+    nextBtn:          document.getElementById('nextBtn'),
+    showAllBtn:       document.getElementById('showAllBtn'),
+    retryBtn:         document.getElementById('retryBtn'),
+    resetBtn:         document.getElementById('resetBtn'),
+    chapterList:      document.getElementById('chapterList'),
+    selectAllBtn:     document.getElementById('selectAllBtn'),
+    deselectAllBtn:   document.getElementById('deselectAllBtn'),
+    questionNumber:   document.getElementById('questionNumber'),
     questionCategory: document.getElementById('questionCategory'),
-    questionText: document.getElementById('questionText'),
+    questionText:     document.getElementById('questionText'),
     choicesContainer: document.getElementById('choicesContainer'),
-    progress: document.getElementById('progress'),
-    resultText: document.getElementById('resultText')
+    progress:         document.getElementById('progress'),
+    resultText:       document.getElementById('resultText')
 };
 
-// LocalStorage キー
-const STORAGE_KEY = 'quizProgress';
+// ── 初期化 ────────────────────────────────────────────────
 
-// 初期化
 async function init() {
     try {
         const res = await fetch('./questions.json');
         const data = await res.json();
         questions = data.questions;
-        chapters = data.chapters;
+        chapters  = data.chapters;
     } catch (e) {
         console.error('問題データの読み込みに失敗しました', e);
         return;
@@ -67,7 +68,6 @@ async function init() {
     initApp();
 }
 
-// アプリの初期化
 function initApp() {
     loadProgress();
     updateProgressDisplay();
@@ -76,7 +76,6 @@ function initApp() {
     setupEventListeners();
 }
 
-// イベントリスナーの設定
 function setupEventListeners() {
     elements.startBtn.addEventListener('click', startQuiz);
     elements.nextBtn.addEventListener('click', nextQuestion);
@@ -89,23 +88,36 @@ function setupEventListeners() {
     document.querySelectorAll('.mode-tab').forEach(tab => {
         tab.addEventListener('click', () => switchMode(tab.dataset.mode));
     });
+
+    document.getElementById('filterWrongBtn')
+        ?.addEventListener('click', toggleFilterWrong);
 }
 
-// モード切り替え
+// ── モード切り替え ─────────────────────────────────────────
+
 function switchMode(mode) {
     state.mode = mode;
+
+    // 穴埋めに戻ったらフィルターをリセット
+    if (mode !== 'kakomon' && state.filterWrong) {
+        state.filterWrong = false;
+        document.getElementById('filterWrongBtn')?.classList.remove('active');
+    }
+
     document.querySelectorAll('.mode-tab').forEach(tab => {
         tab.classList.toggle('active', tab.dataset.mode === mode);
     });
     document.getElementById('anaumeSection').classList.toggle('hidden', mode !== 'anaume');
     document.getElementById('kakomonSection').classList.toggle('hidden', mode !== 'kakomon');
-
     document.getElementById('modeDesc').textContent = mode === 'anaume'
         ? '穴埋め部分をクリックすると答えが表示されます'
         : '選択した試験からランダムに10問出題されます';
+
+    if (mode === 'kakomon') renderKakomonHistory();
 }
 
-// 進捗の読み込み
+// ── 進捗（穴埋め）──────────────────────────────────────────
+
 function loadProgress() {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -118,46 +130,41 @@ function loadProgress() {
     }
 }
 
-// 進捗の保存
 function saveProgress() {
     try {
-        const data = {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
             completedQuestions: Array.from(state.completedQuestions)
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }));
     } catch (e) {
         console.error('進捗の保存に失敗しました', e);
     }
 }
 
-// 進捗表示の更新
 function updateProgressDisplay() {
-    const completed = state.completedQuestions.size;
-    const total = questions.length;
-    elements.progress.textContent = `${completed} / ${total} 問完了`;
+    elements.progress.textContent =
+        `${state.completedQuestions.size} / ${questions.length} 問完了`;
 }
 
-// 章リストを生成
+// ── チャプター選択 ─────────────────────────────────────────
+
 function generateChapterList() {
     elements.chapterList.innerHTML = '';
-
-    const questionCountByChapter = {};
+    const countByChapter = {};
     questions.forEach(q => {
-        questionCountByChapter[q.chapter] = (questionCountByChapter[q.chapter] || 0) + 1;
+        countByChapter[q.chapter] = (countByChapter[q.chapter] || 0) + 1;
     });
 
     Object.keys(chapters).forEach(chapterId => {
         const chapter = chapters[chapterId];
-        const questionCount = questionCountByChapter[chapterId] || 0;
-
-        if (questionCount === 0) return;
+        const count = countByChapter[chapterId] || 0;
+        if (count === 0) return;
 
         const div = document.createElement('div');
         div.className = 'chapter-item selected';
         div.innerHTML = `
             <input type="checkbox" id="chapter-${chapterId}" checked>
             <label for="chapter-${chapterId}">${chapter.title}</label>
-            <span class="question-badge">${questionCount}問</span>
+            <span class="question-badge">${count}問</span>
         `;
 
         const checkbox = div.querySelector('input');
@@ -165,7 +172,6 @@ function generateChapterList() {
             toggleChapter(chapterId, checkbox.checked);
             div.classList.toggle('selected', checkbox.checked);
         });
-
         div.addEventListener('click', (e) => {
             if (e.target.tagName !== 'INPUT') {
                 checkbox.checked = !checkbox.checked;
@@ -179,7 +185,29 @@ function generateChapterList() {
     });
 }
 
-// 試験リストを生成
+function toggleChapter(chapterId, selected) {
+    if (selected) state.selectedChapters.add(parseInt(chapterId));
+    else          state.selectedChapters.delete(parseInt(chapterId));
+}
+
+function selectAllChapters() {
+    elements.chapterList.querySelectorAll('input').forEach(cb => {
+        cb.checked = true;
+        state.selectedChapters.add(parseInt(cb.id.replace('chapter-', '')));
+        cb.closest('.chapter-item').classList.add('selected');
+    });
+}
+
+function deselectAllChapters() {
+    elements.chapterList.querySelectorAll('input').forEach(cb => {
+        cb.checked = false;
+        state.selectedChapters.delete(parseInt(cb.id.replace('chapter-', '')));
+        cb.closest('.chapter-item').classList.remove('selected');
+    });
+}
+
+// ── 試験選択 ───────────────────────────────────────────────
+
 function generateExamList() {
     const list = document.getElementById('examList');
     if (!list || availableExams.length === 0) return;
@@ -196,22 +224,15 @@ function generateExamList() {
 
         const checkbox = div.querySelector('input');
         checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-                state.selectedExams.add(exam.id);
-            } else {
-                state.selectedExams.delete(exam.id);
-            }
+            if (checkbox.checked) state.selectedExams.add(exam.id);
+            else                  state.selectedExams.delete(exam.id);
             div.classList.toggle('selected', checkbox.checked);
         });
-
         div.addEventListener('click', (e) => {
             if (e.target.tagName !== 'INPUT') {
                 checkbox.checked = !checkbox.checked;
-                if (checkbox.checked) {
-                    state.selectedExams.add(exam.id);
-                } else {
-                    state.selectedExams.delete(exam.id);
-                }
+                if (checkbox.checked) state.selectedExams.add(exam.id);
+                else                  state.selectedExams.delete(exam.id);
                 div.classList.toggle('selected', checkbox.checked);
             }
         });
@@ -219,75 +240,138 @@ function generateExamList() {
         list.appendChild(div);
         state.selectedExams.add(exam.id);
     });
+
+    renderKakomonHistory();
 }
 
-// 章の選択を切り替え
-function toggleChapter(chapterId, selected) {
-    if (selected) {
-        state.selectedChapters.add(parseInt(chapterId));
+// ── 過去問 履歴 ────────────────────────────────────────────
+
+function getKakomonHistory() {
+    try {
+        return JSON.parse(localStorage.getItem(KAKOMON_HISTORY_KEY) || '[]');
+    } catch { return []; }
+}
+
+function saveKakomonResult() {
+    const history = getKakomonHistory();
+    history.unshift({
+        timestamp: Date.now(),
+        dateStr: new Date().toLocaleDateString('ja-JP',
+            { year: 'numeric', month: 'numeric', day: 'numeric' }),
+        examIds:   [...state.selectedExams],
+        total:     state.currentQuestions.length,
+        correct:   state.correctCount,
+        wrongIds:  [...state.wrongQuestionIds]
+    });
+    if (history.length > 5) history.length = 5;
+    localStorage.setItem(KAKOMON_HISTORY_KEY, JSON.stringify(history));
+}
+
+function renderKakomonHistory() {
+    const history      = getKakomonHistory();
+    const filterBar    = document.getElementById('kakomonFilterBar');
+    const histSection  = document.getElementById('kakomonHistorySection');
+    const histList     = document.getElementById('kakomonHistoryList');
+    const countEl      = document.getElementById('filterWrongCount');
+    const qCountEl     = document.getElementById('kakomonQuestionCount');
+    if (!filterBar || !histSection || !histList) return;
+
+    // フィルターボタン
+    const last = history[0];
+    if (last && last.wrongIds.length > 0) {
+        countEl.textContent = `${last.wrongIds.length}問`;
+        filterBar.classList.remove('hidden');
     } else {
-        state.selectedChapters.delete(parseInt(chapterId));
+        filterBar.classList.add('hidden');
+        if (state.filterWrong) {
+            state.filterWrong = false;
+            document.getElementById('filterWrongBtn')?.classList.remove('active');
+        }
     }
-}
 
-// すべての章を選択
-function selectAllChapters() {
-    const checkboxes = elements.chapterList.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = true;
-        const chapterId = parseInt(checkbox.id.replace('chapter-', ''));
-        state.selectedChapters.add(chapterId);
-        checkbox.closest('.chapter-item').classList.add('selected');
+    // 出題数テキスト更新
+    if (qCountEl) {
+        if (state.filterWrong && last) {
+            qCountEl.innerHTML = `前回の間違い <strong>${last.wrongIds.length}問</strong> を出題します`;
+        } else {
+            qCountEl.innerHTML = `選択した試験からランダムに<strong>10問</strong>出題されます`;
+        }
+    }
+
+    // 履歴リスト
+    if (history.length === 0) {
+        histSection.classList.add('hidden');
+        return;
+    }
+    histSection.classList.remove('hidden');
+    histList.innerHTML = '';
+
+    history.forEach(entry => {
+        const pct = Math.round(entry.correct / entry.total * 100);
+        const examLabels = entry.examIds
+            .map(id => availableExams.find(e => e.id === id)?.label || id)
+            .join('・');
+
+        const div = document.createElement('div');
+        div.className = 'history-entry';
+        div.innerHTML = `
+            <span class="history-date">${entry.dateStr}</span>
+            <span class="history-score">${entry.correct}<em>/${entry.total}</em></span>
+            <span class="history-pct">${pct}%</span>
+            <span class="history-exams">${escapeHtml(examLabels)}</span>
+        `;
+        histList.appendChild(div);
     });
 }
 
-// すべての章を解除
-function deselectAllChapters() {
-    const checkboxes = elements.chapterList.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = false;
-        const chapterId = parseInt(checkbox.id.replace('chapter-', ''));
-        state.selectedChapters.delete(chapterId);
-        checkbox.closest('.chapter-item').classList.remove('selected');
-    });
+function toggleFilterWrong() {
+    state.filterWrong = !state.filterWrong;
+    const btn     = document.getElementById('filterWrongBtn');
+    const countEl = document.getElementById('filterWrongCount');
+    btn.classList.toggle('active', state.filterWrong);
+
+    const last = getKakomonHistory()[0];
+    if (last) {
+        countEl.textContent = state.filterWrong
+            ? `${last.wrongIds.length}問 ✓`
+            : `${last.wrongIds.length}問`;
+    }
+
+    // 出題数テキスト更新
+    renderKakomonHistory();
 }
 
-// クイズ開始（モードに応じて分岐）
+// ── クイズ開始 ─────────────────────────────────────────────
+
 async function startQuiz() {
-    if (state.mode === 'kakomon') {
-        await startKakomonQuiz();
-    } else {
-        startAnaumeQuiz();
-    }
+    if (state.mode === 'kakomon') await startKakomonQuiz();
+    else                          startAnaumeQuiz();
 }
 
-// 穴埋めクイズ開始
 function startAnaumeQuiz() {
     if (state.selectedChapters.size === 0) {
         alert('出題範囲を1つ以上選択してください');
         return;
     }
-
-    const filteredQuestions = questions.filter(q =>
-        state.selectedChapters.has(q.chapter)
-    );
-
-    if (filteredQuestions.length === 0) {
+    const filtered = questions.filter(q => state.selectedChapters.has(q.chapter));
+    if (filtered.length === 0) {
         alert('選択した章に問題がありません');
         return;
     }
-
-    shuffleArray(filteredQuestions);
-    state.currentQuestions = filteredQuestions.slice(0, QUESTIONS_PER_QUIZ);
+    shuffleArray(filtered);
+    state.currentQuestions = filtered.slice(0, QUESTIONS_PER_QUIZ);
     state.currentIndex = 0;
     state.revealedBlanks.clear();
-
     showScreen('quiz');
     displayQuestion();
 }
 
-// 過去問クイズ開始
 async function startKakomonQuiz() {
+    if (state.filterWrong) {
+        await startKakomonFilteredQuiz();
+        return;
+    }
+
     if (state.selectedExams.size === 0) {
         alert('試験を1つ以上選択してください');
         return;
@@ -298,7 +382,7 @@ async function startKakomonQuiz() {
         const exam = availableExams.find(e => e.id === examId);
         if (!exam) continue;
         try {
-            const res = await fetch(`./${exam.file}`);
+            const res  = await fetch(`./${exam.file}`);
             const data = await res.json();
             data.questions.forEach(q => { q._examLabel = exam.label; });
             allQuestions = allQuestions.concat(data.questions);
@@ -313,16 +397,61 @@ async function startKakomonQuiz() {
     }
 
     shuffleArray(allQuestions);
-    state.currentQuestions = allQuestions.slice(0, QUESTIONS_PER_QUIZ);
-    state.currentIndex = 0;
-    state.correctCount = 0;
-    state.answerSelected = false;
-
+    state.currentQuestions  = allQuestions.slice(0, QUESTIONS_PER_QUIZ);
+    state.currentIndex      = 0;
+    state.correctCount      = 0;
+    state.answerSelected    = false;
+    state.wrongQuestionIds  = [];
     showScreen('quiz');
     displayKakomonQuestion();
 }
 
-// 配列をシャッフル (Fisher-Yates)
+async function startKakomonFilteredQuiz() {
+    const last = getKakomonHistory()[0];
+    if (!last || last.wrongIds.length === 0) {
+        alert('練習する間違い問題がありません');
+        return;
+    }
+
+    const wrongIds = last.wrongIds;
+    // 必要な試験ファイルを特定（問題IDのプレフィックスから）
+    const examIdsNeeded = [...new Set(
+        wrongIds.map(id => availableExams.find(e => id.startsWith(e.id))?.id)
+                .filter(Boolean)
+    )];
+
+    let allQuestions = [];
+    for (const examId of examIdsNeeded) {
+        const exam = availableExams.find(e => e.id === examId);
+        if (!exam) continue;
+        try {
+            const res  = await fetch(`./${exam.file}`);
+            const data = await res.json();
+            data.questions.forEach(q => { q._examLabel = exam.label; });
+            allQuestions = allQuestions.concat(data.questions);
+        } catch (e) {
+            console.error(`過去問の読み込みに失敗しました: ${examId}`, e);
+        }
+    }
+
+    const filteredQuestions = allQuestions.filter(q => wrongIds.includes(q.id));
+    if (filteredQuestions.length === 0) {
+        alert('問題を読み込めませんでした');
+        return;
+    }
+
+    shuffleArray(filteredQuestions);
+    state.currentQuestions  = filteredQuestions; // 上限なし（全間違い問題）
+    state.currentIndex      = 0;
+    state.correctCount      = 0;
+    state.answerSelected    = false;
+    state.wrongQuestionIds  = [];
+    showScreen('quiz');
+    displayKakomonQuestion();
+}
+
+// ── 問題表示 ───────────────────────────────────────────────
+
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -330,27 +459,22 @@ function shuffleArray(array) {
     }
 }
 
-// 穴埋め問題を表示
 function displayQuestion() {
     const question = state.currentQuestions[state.currentIndex];
-
     elements.questionNumber.textContent =
         `問題 ${state.currentIndex + 1} / ${state.currentQuestions.length}`;
     const chapter = chapters[question.chapter];
     const sectionName = chapter.sections[question.section] || '';
     elements.questionCategory.textContent = `${chapter.title} / ${sectionName}`;
-
     elements.questionText.innerHTML = parseQuestionText(question.text, question.id);
 
     elements.showAllBtn.classList.remove('hidden');
     elements.nextBtn.disabled = false;
     elements.choicesContainer.classList.add('hidden');
-
     setupBlankEvents();
     state.revealedBlanks.clear();
 }
 
-// 過去問を表示
 function displayKakomonQuestion() {
     const question = state.currentQuestions[state.currentIndex];
     state.answerSelected = false;
@@ -359,8 +483,8 @@ function displayKakomonQuestion() {
         `問題 ${state.currentIndex + 1} / ${state.currentQuestions.length}`;
     elements.questionCategory.textContent =
         `${question._examLabel}　問${question.number}`;
-
-    elements.questionText.innerHTML = escapeHtml(question.instruction).replace(/\n/g, '<br>');
+    elements.questionText.innerHTML =
+        escapeHtml(question.instruction).replace(/\n/g, '<br>');
 
     elements.showAllBtn.classList.add('hidden');
     elements.nextBtn.disabled = true;
@@ -370,13 +494,14 @@ function displayKakomonQuestion() {
     question.choices.forEach(choice => {
         const btn = document.createElement('button');
         btn.className = 'choice-btn';
-        btn.innerHTML = `<span class="choice-key">${escapeHtml(choice.key)}</span><span class="choice-text">${escapeHtml(choice.text)}</span>`;
+        btn.innerHTML =
+            `<span class="choice-key">${escapeHtml(choice.key)}</span>` +
+            `<span class="choice-text">${escapeHtml(choice.text)}</span>`;
         btn.addEventListener('click', () => selectChoice(btn, question));
         elements.choicesContainer.appendChild(btn);
     });
 }
 
-// 選択肢を選択
 function selectChoice(btn, question) {
     if (state.answerSelected) return;
     state.answerSelected = true;
@@ -390,17 +515,17 @@ function selectChoice(btn, question) {
         state.correctCount++;
     } else {
         btn.classList.add('choice-wrong');
+        state.wrongQuestionIds.push(question.id);
         allBtns.forEach(b => {
-            if (b.querySelector('.choice-key').textContent === question.answer) {
+            if (b.querySelector('.choice-key').textContent === question.answer)
                 b.classList.add('choice-correct');
-            }
         });
     }
-
     elements.nextBtn.disabled = false;
 }
 
-// 問題テキストをパース（穴埋め用）
+// ── 穴埋め ────────────────────────────────────────────────
+
 function parseQuestionText(text, questionId) {
     let blankIndex = 0;
     return text.replace(/\{\{(.+?)\}\}/g, (match, answer) => {
@@ -409,39 +534,29 @@ function parseQuestionText(text, questionId) {
     });
 }
 
-// HTMLエスケープ
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// 穴埋め部分のイベント設定
 function setupBlankEvents() {
-    const blanks = elements.questionText.querySelectorAll('.blank');
-    blanks.forEach(blank => {
+    elements.questionText.querySelectorAll('.blank').forEach(blank => {
         blank.addEventListener('click', () => revealBlank(blank));
     });
 }
 
-// 穴埋め部分を表示
 function revealBlank(blank) {
     if (blank.classList.contains('revealed')) return;
-
-    const answer = blank.dataset.answer;
-    blank.textContent = answer;
+    blank.textContent = blank.dataset.answer;
     blank.classList.add('revealed');
-
     state.revealedBlanks.add(blank.dataset.blankId);
     checkAllRevealed();
 }
 
-// すべての穴が表示されたか確認
 function checkAllRevealed() {
     const blanks = elements.questionText.querySelectorAll('.blank');
-    const allRevealed = Array.from(blanks).every(b => b.classList.contains('revealed'));
-
-    if (allRevealed) {
+    if (Array.from(blanks).every(b => b.classList.contains('revealed'))) {
         const question = state.currentQuestions[state.currentIndex];
         state.completedQuestions.add(question.id);
         saveProgress();
@@ -449,55 +564,46 @@ function checkAllRevealed() {
     }
 }
 
-// すべての穴埋めを表示
 function showAllBlanks() {
-    const blanks = elements.questionText.querySelectorAll('.blank');
-    blanks.forEach(blank => revealBlank(blank));
+    elements.questionText.querySelectorAll('.blank').forEach(b => revealBlank(b));
 }
 
-// 次の問題へ
+// ── ナビゲーション ─────────────────────────────────────────
+
 function nextQuestion() {
     state.currentIndex++;
-
     if (state.currentIndex >= state.currentQuestions.length) {
         showResult();
     } else {
-        if (state.mode === 'kakomon') {
-            displayKakomonQuestion();
-        } else {
-            displayQuestion();
-        }
+        if (state.mode === 'kakomon') displayKakomonQuestion();
+        else                          displayQuestion();
     }
 }
 
-// 結果画面を表示
 function showResult() {
     const resultTitle = document.querySelector('#resultScreen h2');
     if (state.mode === 'kakomon') {
-        const total = state.currentQuestions.length;
-        const correct = state.correctCount;
-        const pct = Math.round(correct / total * 100);
-        resultTitle.textContent = '結果発表！';
-        elements.resultText.textContent =
-            `${total}問中 ${correct}問正解（正答率 ${pct}%）`;
+        saveKakomonResult();
+        const pct = Math.round(state.correctCount / state.currentQuestions.length * 100);
+        resultTitle.textContent = '結果発表';
+        elements.resultText.innerHTML =
+            `<span class="result-score">${state.correctCount}<em>/${state.currentQuestions.length}</em></span>` +
+            `<span class="result-pct">正答率 ${pct}%</span>`;
     } else {
-        resultTitle.textContent = '学習完了!';
-        const completed = state.completedQuestions.size;
-        const total = questions.length;
+        resultTitle.textContent = '学習完了';
         elements.resultText.textContent =
-            `全${state.currentQuestions.length}問を学習しました。累計 ${completed} / ${total} 問完了です。`;
+            `全${state.currentQuestions.length}問を学習しました。` +
+            `累計 ${state.completedQuestions.size} / ${questions.length} 問完了です。`;
     }
     showScreen('result');
 }
 
-// やり直し
 function retryQuiz() {
     showScreen('start');
 }
 
-// 進捗リセット
 function resetProgress() {
-    if (confirm('進捗をリセットしますか?')) {
+    if (confirm('穴埋め問題の進捗をリセットしますか?')) {
         state.completedQuestions.clear();
         localStorage.removeItem(STORAGE_KEY);
         updateProgressDisplay();
@@ -505,15 +611,18 @@ function resetProgress() {
     }
 }
 
-// 画面切り替え
 function showScreen(screen) {
     elements.startScreen.classList.add('hidden');
     elements.quizScreen.classList.add('hidden');
     elements.resultScreen.classList.add('hidden');
 
+    // スタート画面では進捗を非表示
+    elements.progressInfo.style.visibility = screen === 'start' ? 'hidden' : 'visible';
+
     switch (screen) {
         case 'start':
             elements.startScreen.classList.remove('hidden');
+            if (state.mode === 'kakomon') renderKakomonHistory();
             break;
         case 'quiz':
             elements.quizScreen.classList.remove('hidden');
@@ -524,10 +633,10 @@ function showScreen(screen) {
     }
 }
 
-// アプリ起動
+// ── 起動 ──────────────────────────────────────────────────
+
 init();
 
-// Service Worker登録
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
         .then(reg => console.log('Service Worker registered'))

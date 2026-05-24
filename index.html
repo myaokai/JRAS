@@ -30,7 +30,7 @@
     <div class="container" id="appContainer">
         <header>
             <h1>不動産鑑定評価基準</h1>
-            <div class="progress-info">
+            <div class="progress-info" style="visibility:hidden">
                 <span id="progress">0 / 0 問完了</span>
                 <button id="resetBtn" class="btn-secondary">リセット</button>
             </div>
@@ -70,8 +70,20 @@
                         </div>
                     </div>
 
+                    <div id="kakomonFilterBar" class="kakomon-filter-bar hidden">
+                        <button id="filterWrongBtn" class="filter-wrong-btn" type="button">
+                            <span>前回の間違いを練習</span>
+                            <span id="filterWrongCount" class="filter-wrong-count"></span>
+                        </button>
+                    </div>
+
                     <div class="start-options">
-                        <p class="question-count">選択した試験からランダムに<strong>10問</strong>出題されます</p>
+                        <p class="question-count" id="kakomonQuestionCount">選択した試験からランダムに<strong>10問</strong>出題されます</p>
+                    </div>
+
+                    <div id="kakomonHistorySection" class="kakomon-history hidden">
+                        <div class="kakomon-history-header">学習履歴</div>
+                        <div id="kakomonHistoryList"></div>
                     </div>
                 </div>
 
