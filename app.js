@@ -78,7 +78,7 @@ function setupEventListeners() {
     elements.nextBtn.addEventListener('click', nextQuestion);
     elements.showAllBtn.addEventListener('click', showAllBlanks);
     elements.retryBtn.addEventListener('click', retryQuiz);
-    elements.resetBtn.addEventListener('click', resetProgress);
+    elements.resetBtn.addEventListener('click', () => showScreen('start'));
     elements.selectAllBtn.addEventListener('click', selectAllChapters);
     elements.deselectAllBtn.addEventListener('click', deselectAllChapters);
 
@@ -592,14 +592,6 @@ function retryQuiz() {
     showScreen('start');
 }
 
-function resetProgress() {
-    if (confirm('穴埋め問題の進捗をリセットしますか?')) {
-        state.completedQuestions.clear();
-        localStorage.removeItem(STORAGE_KEY);
-        updateProgressDisplay();
-        showScreen('start');
-    }
-}
 
 function showScreen(screen) {
     elements.startScreen.classList.add('hidden');
