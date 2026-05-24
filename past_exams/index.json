@@ -1,0 +1,4 @@
+[
+  { "id": "R07_kanteishi", "label": "令和7年 鑑定評価理論", "file": "past_exams/R07_kanteishi.json", "count": 40 },
+  { "id": "R07_gyosei",    "label": "令和7年 行政法規",     "file": "past_exams/R07_gyosei.json",    "count": 40 }
+]
