@@ -62,19 +62,6 @@ header h1 {
   color: var(--ink);
 }
 
-.progress-info {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
-}
-
-#progress {
-  font-size: 0.78rem;
-  color: var(--ink-2);
-  font-weight: 300;
-  letter-spacing: 0.03em;
-}
 
 /* ── Main card ── */
 main {

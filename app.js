@@ -25,7 +25,6 @@ const KAKOMON_HISTORY_KEY   = 'kakomonHistory';
 
 const elements = {
     appContainer:     document.getElementById('appContainer'),
-    progressInfo:     document.querySelector('.progress-info'),
     startScreen:      document.getElementById('startScreen'),
     quizScreen:       document.getElementById('quizScreen'),
     resultScreen:     document.getElementById('resultScreen'),
@@ -41,7 +40,6 @@ const elements = {
     questionCategory: document.getElementById('questionCategory'),
     questionText:     document.getElementById('questionText'),
     choicesContainer: document.getElementById('choicesContainer'),
-    progress:         document.getElementById('progress'),
     resultText:       document.getElementById('resultText')
 };
 
@@ -70,7 +68,6 @@ async function init() {
 
 function initApp() {
     loadProgress();
-    updateProgressDisplay();
     generateChapterList();
     generateExamList();
     setupEventListeners();
@@ -138,11 +135,6 @@ function saveProgress() {
     } catch (e) {
         console.error('進捗の保存に失敗しました', e);
     }
-}
-
-function updateProgressDisplay() {
-    elements.progress.textContent =
-        `${state.completedQuestions.size} / ${questions.length} 問完了`;
 }
 
 // ── チャプター選択 ─────────────────────────────────────────
@@ -560,7 +552,6 @@ function checkAllRevealed() {
         const question = state.currentQuestions[state.currentIndex];
         state.completedQuestions.add(question.id);
         saveProgress();
-        updateProgressDisplay();
     }
 }
 
@@ -592,8 +583,7 @@ function showResult() {
     } else {
         resultTitle.textContent = '学習完了';
         elements.resultText.textContent =
-            `全${state.currentQuestions.length}問を学習しました。` +
-            `累計 ${state.completedQuestions.size} / ${questions.length} 問完了です。`;
+            `全${state.currentQuestions.length}問を学習しました。`;
     }
     showScreen('result');
 }
@@ -615,9 +605,6 @@ function showScreen(screen) {
     elements.startScreen.classList.add('hidden');
     elements.quizScreen.classList.add('hidden');
     elements.resultScreen.classList.add('hidden');
-
-    // スタート画面では進捗を非表示
-    elements.progressInfo.style.visibility = screen === 'start' ? 'hidden' : 'visible';
 
     switch (screen) {
         case 'start':
