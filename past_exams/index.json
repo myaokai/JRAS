@@ -1,4 +1,12 @@
 [
   { "id": "R07_kanteishi", "label": "令和7年 鑑定評価理論", "file": "past_exams/R07_kanteishi.json", "count": 40 },
-  { "id": "R07_gyosei",    "label": "令和7年 行政法規",     "file": "past_exams/R07_gyosei.json",    "count": 40 }
+  { "id": "R07_gyosei",    "label": "令和7年 行政法規",     "file": "past_exams/R07_gyosei.json",    "count": 40 },
+  { "id": "R06_kanteishi", "label": "令和6年 鑑定評価理論", "file": "past_exams/R06_kanteishi.json", "count": 40 },
+  { "id": "R06_gyosei",    "label": "令和6年 行政法規",     "file": "past_exams/R06_gyosei.json",    "count": 40 },
+  { "id": "R05_kanteishi", "label": "令和5年 鑑定評価理論", "file": "past_exams/R05_kanteishi.json", "count": 40 },
+  { "id": "R05_gyosei",    "label": "令和5年 行政法規",     "file": "past_exams/R05_gyosei.json",    "count": 40 },
+  { "id": "R04_kanteishi", "label": "令和4年 鑑定評価理論", "file": "past_exams/R04_kanteishi.json", "count": 40 },
+  { "id": "R04_gyosei",    "label": "令和4年 行政法規",     "file": "past_exams/R04_gyosei.json",    "count": 40 },
+  { "id": "R03_kanteishi", "label": "令和3年 鑑定評価理論", "file": "past_exams/R03_kanteishi.json", "count": 40 },
+  { "id": "R03_gyosei",    "label": "令和3年 行政法規",     "file": "past_exams/R03_gyosei.json",    "count": 40 }
 ]
