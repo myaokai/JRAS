@@ -232,6 +232,49 @@ main {
   letter-spacing: 0.04em;
 }
 
+.exam-subject-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  background: var(--accent-bg);
+  border-bottom: 1px solid var(--border-lt);
+  user-select: none;
+  font-weight: 500;
+}
+
+.exam-subject-header:first-child { border-top: none; }
+
+.exam-subject-header input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.exam-subject-header label {
+  font-size: 0.85rem;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 500;
+  flex: 1;
+}
+
+.exam-subject-header .question-badge {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--gold);
+  font-weight: 500;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+}
+
+.exam-child-item {
+  padding-left: 32px;
+}
+
 .start-options {
   margin-bottom: 28px;
   padding-top: 4px;
@@ -460,6 +503,41 @@ main {
 
 .filter-wrong-count             { margin-left: auto; font-size: 0.78rem; color: var(--gold); font-weight: 500; }
 .filter-wrong-btn.active .filter-wrong-count { color: rgba(255,255,255,0.85); }
+
+.filter-wrong-n-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px 0;
+}
+
+.filter-n-label {
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+
+.filter-n-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.filter-n-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(184,135,42,0.35);
+  border-radius: 50%;
+  background: white;
+  font-family: inherit;
+  font-size: 0.76rem;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.filter-n-btn:hover:not(:disabled)  { border-color: var(--gold); color: var(--gold); }
+.filter-n-btn.active                { background: var(--gold); border-color: var(--gold); color: #fff; font-weight: 600; }
+.filter-n-btn:disabled              { border-color: var(--border-lt); opacity: 0.3; cursor: default; }
 
 /* ── Kakomon history ── */
 .kakomon-history {

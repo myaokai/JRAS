@@ -14,14 +14,14 @@ const state = {
     mode: 'anaume',        // 'anaume' | 'kakomon'
     correctCount: 0,
     answerSelected: false,
-    filterWrong: false,    // 前回の間違いフィルター
-    wrongQuestionIds: [],  // 今セッションで間違えた問題ID
+    filterWrong: false,    // 誤答フィルター
     isAuthenticated: false
 };
 
 const QUESTIONS_PER_QUIZ    = 10;
 const STORAGE_KEY           = 'quizProgress';
 const KAKOMON_HISTORY_KEY   = 'kakomonHistory';
+const PROBLEM_RECORD_KEY    = 'problemRecord';
 
 const elements = {
     appContainer:     document.getElementById('appContainer'),
@@ -200,40 +200,127 @@ function deselectAllChapters() {
 
 // ── 試験選択 ───────────────────────────────────────────────
 
+const SUBJECT_ORDER  = ['kanteishi', 'gyosei'];
+const SUBJECT_LABELS = { kanteishi: '鑑定評価理論', gyosei: '行政法規' };
+
+function getExamSubject(examId) {
+    return examId.endsWith('_kanteishi') ? 'kanteishi' : 'gyosei';
+}
+
 function generateExamList() {
     const list = document.getElementById('examList');
     if (!list || availableExams.length === 0) return;
     list.innerHTML = '';
 
+    const groups = {};
     availableExams.forEach(exam => {
-        const div = document.createElement('div');
-        div.className = 'chapter-item selected';
-        div.innerHTML = `
-            <input type="checkbox" id="exam-${exam.id}" checked>
-            <label for="exam-${exam.id}">${exam.label}</label>
-            <span class="question-badge">${exam.count}問</span>
+        const subject = getExamSubject(exam.id);
+        if (!groups[subject]) groups[subject] = [];
+        groups[subject].push(exam);
+    });
+
+    SUBJECT_ORDER.forEach(subject => {
+        const exams = groups[subject];
+        if (!exams || exams.length === 0) return;
+
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'exam-subject-header selected';
+        headerDiv.innerHTML = `
+            <input type="checkbox" id="subject-${subject}" checked>
+            <label for="subject-${subject}">${SUBJECT_LABELS[subject]}</label>
+            <span class="question-badge">${exams.reduce((s, e) => s + e.count, 0)}問</span>
         `;
 
-        const checkbox = div.querySelector('input');
-        checkbox.addEventListener('change', () => {
-            if (checkbox.checked) state.selectedExams.add(exam.id);
-            else                  state.selectedExams.delete(exam.id);
-            div.classList.toggle('selected', checkbox.checked);
+        const subjectCb = headerDiv.querySelector('input');
+        subjectCb.addEventListener('change', () => {
+            exams.forEach(exam => {
+                const examCb = document.getElementById(`exam-${exam.id}`);
+                if (!examCb) return;
+                examCb.checked = subjectCb.checked;
+                if (subjectCb.checked) state.selectedExams.add(exam.id);
+                else                   state.selectedExams.delete(exam.id);
+                examCb.closest('.chapter-item').classList.toggle('selected', subjectCb.checked);
+            });
+            headerDiv.classList.toggle('selected', subjectCb.checked);
         });
-        div.addEventListener('click', (e) => {
+        headerDiv.addEventListener('click', (e) => {
             if (e.target.tagName !== 'INPUT') {
-                checkbox.checked = !checkbox.checked;
-                if (checkbox.checked) state.selectedExams.add(exam.id);
-                else                  state.selectedExams.delete(exam.id);
-                div.classList.toggle('selected', checkbox.checked);
+                subjectCb.checked = !subjectCb.checked;
+                subjectCb.dispatchEvent(new Event('change'));
             }
         });
 
-        list.appendChild(div);
-        state.selectedExams.add(exam.id);
+        list.appendChild(headerDiv);
+
+        exams.forEach(exam => {
+            const yearLabel = exam.label.replace(/\s*(鑑定評価理論|行政法規)/, '').trim();
+            const div = document.createElement('div');
+            div.className = 'chapter-item selected exam-child-item';
+            div.innerHTML = `
+                <input type="checkbox" id="exam-${exam.id}" checked>
+                <label for="exam-${exam.id}">${yearLabel}</label>
+                <span class="question-badge">${exam.count}問</span>
+            `;
+
+            const checkbox = div.querySelector('input');
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) state.selectedExams.add(exam.id);
+                else                  state.selectedExams.delete(exam.id);
+                div.classList.toggle('selected', checkbox.checked);
+                syncSubjectCheckbox(subject, exams);
+            });
+            div.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'INPUT') {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+
+            list.appendChild(div);
+            state.selectedExams.add(exam.id);
+        });
     });
 
     renderKakomonHistory();
+}
+
+function syncSubjectCheckbox(subject, exams) {
+    const subjectCb = document.getElementById(`subject-${subject}`);
+    if (!subjectCb) return;
+    const allChecked  = exams.every(e => state.selectedExams.has(e.id));
+    const noneChecked = exams.every(e => !state.selectedExams.has(e.id));
+    subjectCb.checked       = allChecked;
+    subjectCb.indeterminate = !allChecked && !noneChecked;
+    subjectCb.closest('.exam-subject-header').classList.toggle('selected', allChecked || !noneChecked);
+}
+
+// ── 問題単位の正誤記録 ────────────────────────────────────
+
+function getProblemRecord() {
+    try {
+        return JSON.parse(localStorage.getItem(PROBLEM_RECORD_KEY) || '{}');
+    } catch { return {}; }
+}
+
+function saveProblemRecord(record) {
+    try {
+        localStorage.setItem(PROBLEM_RECORD_KEY, JSON.stringify(record));
+    } catch (e) {
+        console.error('問題記録の保存に失敗しました', e);
+    }
+}
+
+function updateProblemRecord(questionId, correct) {
+    const record = getProblemRecord();
+    record[questionId] = { lastCorrect: correct, ts: Date.now() };
+    saveProblemRecord(record);
+}
+
+function getWrongIds() {
+    const record = getProblemRecord();
+    return Object.entries(record)
+        .filter(([, r]) => !r.lastCorrect)
+        .map(([id]) => id);
 }
 
 // ── 過去問 履歴 ────────────────────────────────────────────
@@ -250,10 +337,9 @@ function saveKakomonResult() {
         timestamp: Date.now(),
         dateStr: new Date().toLocaleDateString('ja-JP',
             { year: 'numeric', month: 'numeric', day: 'numeric' }),
-        examIds:   [...state.selectedExams],
-        total:     state.currentQuestions.length,
-        correct:   state.correctCount,
-        wrongIds:  [...state.wrongQuestionIds]
+        examIds: [...state.selectedExams],
+        total:   state.currentQuestions.length,
+        correct: state.correctCount
     });
     if (history.length > 5) history.length = 5;
     localStorage.setItem(KAKOMON_HISTORY_KEY, JSON.stringify(history));
@@ -269,9 +355,9 @@ function renderKakomonHistory() {
     if (!filterBar || !histSection || !histList) return;
 
     // フィルターボタン
-    const last = history[0];
-    if (last && last.wrongIds.length > 0) {
-        countEl.textContent = `${last.wrongIds.length}問`;
+    const wrongIds = getWrongIds();
+    if (wrongIds.length > 0) {
+        countEl.textContent = `${wrongIds.length}問`;
         filterBar.classList.remove('hidden');
     } else {
         filterBar.classList.add('hidden');
@@ -283,8 +369,10 @@ function renderKakomonHistory() {
 
     // 出題数テキスト更新
     if (qCountEl) {
-        if (state.filterWrong && last) {
-            qCountEl.innerHTML = `前回の間違い <strong>${last.wrongIds.length}問</strong> を出題します`;
+        if (state.filterWrong) {
+            const wIds = getWrongIds();
+            const outOf = Math.min(wIds.length, QUESTIONS_PER_QUIZ);
+            qCountEl.innerHTML = `直近の間違い ${wIds.length}問 から <strong>${outOf}問</strong> 出題します`;
         } else {
             qCountEl.innerHTML = `選択した試験からランダムに<strong>10問</strong>出題されます`;
         }
@@ -318,18 +406,7 @@ function renderKakomonHistory() {
 
 function toggleFilterWrong() {
     state.filterWrong = !state.filterWrong;
-    const btn     = document.getElementById('filterWrongBtn');
-    const countEl = document.getElementById('filterWrongCount');
-    btn.classList.toggle('active', state.filterWrong);
-
-    const last = getKakomonHistory()[0];
-    if (last) {
-        countEl.textContent = state.filterWrong
-            ? `${last.wrongIds.length}問 ✓`
-            : `${last.wrongIds.length}問`;
-    }
-
-    // 出題数テキスト更新
+    document.getElementById('filterWrongBtn')?.classList.toggle('active', state.filterWrong);
     renderKakomonHistory();
 }
 
@@ -393,19 +470,16 @@ async function startKakomonQuiz() {
     state.currentIndex      = 0;
     state.correctCount      = 0;
     state.answerSelected    = false;
-    state.wrongQuestionIds  = [];
     showScreen('quiz');
     displayKakomonQuestion();
 }
 
 async function startKakomonFilteredQuiz() {
-    const last = getKakomonHistory()[0];
-    if (!last || last.wrongIds.length === 0) {
+    const wrongIds = getWrongIds();
+    if (wrongIds.length === 0) {
         alert('練習する間違い問題がありません');
         return;
     }
-
-    const wrongIds = last.wrongIds;
     // 必要な試験ファイルを特定（問題IDのプレフィックスから）
     const examIdsNeeded = [...new Set(
         wrongIds.map(id => availableExams.find(e => id.startsWith(e.id))?.id)
@@ -433,11 +507,10 @@ async function startKakomonFilteredQuiz() {
     }
 
     shuffleArray(filteredQuestions);
-    state.currentQuestions  = filteredQuestions; // 上限なし（全間違い問題）
+    state.currentQuestions  = filteredQuestions.slice(0, QUESTIONS_PER_QUIZ);
     state.currentIndex      = 0;
     state.correctCount      = 0;
     state.answerSelected    = false;
-    state.wrongQuestionIds  = [];
     showScreen('quiz');
     displayKakomonQuestion();
 }
@@ -502,12 +575,13 @@ function selectChoice(btn, question) {
     allBtns.forEach(b => { b.disabled = true; });
 
     const selectedKey = btn.querySelector('.choice-key').textContent;
-    if (selectedKey === question.answer) {
+    const correct = selectedKey === question.answer;
+    updateProblemRecord(question.id, correct);
+    if (correct) {
         btn.classList.add('choice-correct');
         state.correctCount++;
     } else {
         btn.classList.add('choice-wrong');
-        state.wrongQuestionIds.push(question.id);
         allBtns.forEach(b => {
             if (b.querySelector('.choice-key').textContent === question.answer)
                 b.classList.add('choice-correct');
