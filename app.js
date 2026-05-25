@@ -14,7 +14,8 @@ const state = {
     mode: 'anaume',        // 'anaume' | 'kakomon'
     correctCount: 0,
     answerSelected: false,
-    filterWrong: false,    // 誤答フィルター
+    filterWrong: false,       // 過去問：誤答フィルター
+    filterUnlearned: false,   // 穴埋め：未習得フィルター
     isAuthenticated: false
 };
 
@@ -71,6 +72,7 @@ function initApp() {
     generateChapterList();
     generateExamList();
     setupEventListeners();
+    renderAnaumeFilter();
 }
 
 function setupEventListeners() {
@@ -88,6 +90,8 @@ function setupEventListeners() {
 
     document.getElementById('filterWrongBtn')
         ?.addEventListener('click', toggleFilterWrong);
+    document.getElementById('filterUnlearnedBtn')
+        ?.addEventListener('click', toggleFilterUnlearned);
 }
 
 // ── モード切り替え ─────────────────────────────────────────
@@ -111,6 +115,7 @@ function switchMode(mode) {
         : '選択した試験からランダムに10問出題されます';
 
     if (mode === 'kakomon') renderKakomonHistory();
+    if (mode === 'anaume')  renderAnaumeFilter();
 }
 
 // ── 進捗（穴埋め）──────────────────────────────────────────
@@ -180,6 +185,7 @@ function generateChapterList() {
 function toggleChapter(chapterId, selected) {
     if (selected) state.selectedChapters.add(parseInt(chapterId));
     else          state.selectedChapters.delete(parseInt(chapterId));
+    renderAnaumeFilter();
 }
 
 function selectAllChapters() {
@@ -188,6 +194,7 @@ function selectAllChapters() {
         state.selectedChapters.add(parseInt(cb.id.replace('chapter-', '')));
         cb.closest('.chapter-item').classList.add('selected');
     });
+    renderAnaumeFilter();
 }
 
 function deselectAllChapters() {
@@ -196,6 +203,7 @@ function deselectAllChapters() {
         state.selectedChapters.delete(parseInt(cb.id.replace('chapter-', '')));
         cb.closest('.chapter-item').classList.remove('selected');
     });
+    renderAnaumeFilter();
 }
 
 // ── 試験選択 ───────────────────────────────────────────────
@@ -410,6 +418,48 @@ function toggleFilterWrong() {
     renderKakomonHistory();
 }
 
+// ── 穴埋め フィルター ─────────────────────────────────────
+
+function getUnlearnedForChapters() {
+    return questions.filter(q =>
+        state.selectedChapters.has(q.chapter) && !state.completedQuestions.has(q.id)
+    );
+}
+
+function renderAnaumeFilter() {
+    const filterBar = document.getElementById('anaumeFilterBar');
+    const countEl   = document.getElementById('filterUnlearnedCount');
+    const qCountEl  = document.getElementById('anaumeQuestionCount');
+    if (!filterBar) return;
+
+    const unlearned = getUnlearnedForChapters();
+    if (unlearned.length > 0) {
+        countEl.textContent = `${unlearned.length}問`;
+        filterBar.classList.remove('hidden');
+    } else {
+        filterBar.classList.add('hidden');
+        if (state.filterUnlearned) {
+            state.filterUnlearned = false;
+            document.getElementById('filterUnlearnedBtn')?.classList.remove('active');
+        }
+    }
+
+    if (qCountEl) {
+        if (state.filterUnlearned) {
+            const outOf = Math.min(unlearned.length, QUESTIONS_PER_QUIZ);
+            qCountEl.innerHTML = `未習得 ${unlearned.length}問 から <strong>${outOf}問</strong> 出題します`;
+        } else {
+            qCountEl.innerHTML = `選択した章からランダムに<strong>10問</strong>出題されます`;
+        }
+    }
+}
+
+function toggleFilterUnlearned() {
+    state.filterUnlearned = !state.filterUnlearned;
+    document.getElementById('filterUnlearnedBtn')?.classList.toggle('active', state.filterUnlearned);
+    renderAnaumeFilter();
+}
+
 // ── クイズ開始 ─────────────────────────────────────────────
 
 async function startQuiz() {
@@ -422,13 +472,17 @@ function startAnaumeQuiz() {
         alert('出題範囲を1つ以上選択してください');
         return;
     }
-    const filtered = questions.filter(q => state.selectedChapters.has(q.chapter));
-    if (filtered.length === 0) {
+    let pool = questions.filter(q => state.selectedChapters.has(q.chapter));
+    if (state.filterUnlearned) {
+        const unlearned = pool.filter(q => !state.completedQuestions.has(q.id));
+        if (unlearned.length > 0) pool = unlearned;
+    }
+    if (pool.length === 0) {
         alert('選択した章に問題がありません');
         return;
     }
-    shuffleArray(filtered);
-    state.currentQuestions = filtered.slice(0, QUESTIONS_PER_QUIZ);
+    shuffleArray(pool);
+    state.currentQuestions = pool.slice(0, QUESTIONS_PER_QUIZ);
     state.currentIndex = 0;
     state.revealedBlanks.clear();
     showScreen('quiz');
@@ -676,6 +730,7 @@ function showScreen(screen) {
         case 'start':
             elements.startScreen.classList.remove('hidden');
             if (state.mode === 'kakomon') renderKakomonHistory();
+            if (state.mode === 'anaume')  renderAnaumeFilter();
             break;
         case 'quiz':
             elements.quizScreen.classList.remove('hidden');
