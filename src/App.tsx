@@ -3,6 +3,7 @@ import type { AnaumeQuestion, ExamMeta, KakomonQuestion, Mode, QuestionsData } f
 import { loadExamData, loadExamIndex, loadQuestionsData } from './data/loadData'
 import { useProblemRecord } from './hooks/useProblemRecord'
 import { useKakomonHistory } from './hooks/useKakomonHistory'
+import { useHabitRecord } from './hooks/useHabitRecord'
 import { StartScreen } from './components/StartScreen'
 import { QuizScreen } from './components/QuizScreen'
 import { ResultScreen } from './components/ResultScreen'
@@ -30,6 +31,7 @@ function App() {
 
   const { updateProblemRecord, isQuestionDue, dueIds } = useProblemRecord()
   const { history, addResult } = useKakomonHistory()
+  const { habitRecord, recordStudyAction } = useHabitRecord()
 
   useEffect(() => {
     loadQuestionsData()
@@ -173,6 +175,7 @@ function App() {
             onModeChange={handleModeChange}
             questionsData={questionsData}
             examIndex={examIndex}
+            habitRecord={habitRecord}
             selectedChapters={selectedChapters}
             onChaptersChange={setSelectedChapters}
             selectedExams={selectedExams}
@@ -194,12 +197,14 @@ function App() {
             currentQuestions={currentQuestions}
             currentIndex={currentIndex}
             onNext={handleNext}
-            onAnaumeAssessed={(questionId, correct) =>
+            onAnaumeAssessed={(questionId, correct) => {
               updateProblemRecord(String(questionId), correct)
-            }
+              recordStudyAction()
+            }}
             onKakomonAnswered={(questionId, correct) => {
               updateProblemRecord(questionId, correct)
               if (correct) setCorrectCount((c) => c + 1)
+              recordStudyAction()
             }}
           />
         )}

@@ -1,16 +1,18 @@
-import type { ExamMeta, KakomonHistory, Mode, QuestionsData } from '../types'
+import type { ExamMeta, HabitRecord, KakomonHistory, Mode, QuestionsData } from '../types'
 import { QUESTIONS_PER_QUIZ } from '../constants'
 import { ModeTabs } from './ModeTabs'
 import { ChapterSelector } from './ChapterSelector'
 import { ExamSelector } from './ExamSelector'
 import { FilterBar } from './FilterBar'
 import { KakomonHistoryList } from './KakomonHistoryList'
+import { HabitWidget } from './HabitWidget'
 
 interface Props {
   mode: Mode
   onModeChange: (mode: Mode) => void
   questionsData: QuestionsData
   examIndex: ExamMeta[]
+  habitRecord: HabitRecord
   selectedChapters: Set<number>
   onChaptersChange: (next: Set<number>) => void
   selectedExams: Set<string>
@@ -30,6 +32,7 @@ export function StartScreen({
   onModeChange,
   questionsData,
   examIndex,
+  habitRecord,
   selectedChapters,
   onChaptersChange,
   selectedExams,
@@ -45,6 +48,7 @@ export function StartScreen({
 }: Props) {
   return (
     <div id="startScreen" className="screen">
+      <HabitWidget habitRecord={habitRecord} />
       <ModeTabs mode={mode} onChange={onModeChange} />
       <h2>学習を始めましょう</h2>
       <p>
