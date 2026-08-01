@@ -5,3 +5,4 @@ screenshots/
 dist/
 dev-dist/
 *.tsbuildinfo
+.wrangler/
