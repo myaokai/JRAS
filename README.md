@@ -3,37 +3,56 @@
 不動産鑑定評価基準（JRAS）の穴埋め問題集 PWA。
 穴埋め部分をクリックすると答えが表示されます。
 
-## サーバーの起動
+Vite + React + TypeScript 製。ビルド後は完全に静的なファイルになるため、
+サーバーを常時起動しておく必要はありません（Cloudflare Pages 等にデプロイして使う想定）。
 
-静的HTTPサーバーであれば何でも使えます。
+## セットアップ
 
 ```bash
-# Python
-python3 -m http.server 8000
-
-# Node.js
-npx serve .
+npm install
 ```
 
-起動後、ブラウザで `http://localhost:8000` を開いてください。
+## 開発
 
-> **注意:** `file://` で直接開くと `fetch` によるデータ読み込みが失敗するため、必ずHTTPサーバー経由でアクセスしてください。
+```bash
+npm run dev
+```
+
+起動後、表示されたURL（通常 `http://localhost:5173`）をブラウザで開いてください。
+
+## ビルド・動作確認
+
+```bash
+npm run build      # dist/ に静的ファイルを生成
+npm run preview    # ビルド結果をローカルで確認
+```
 
 ## ファイル構成
 
 ```
 JRAS/
-├── index.html        # メインHTML
-├── app.js            # アプリケーションロジック
-├── questions.json    # 問題データ（章・節・問題）
-├── style.css         # スタイル
-├── sw.js             # Service Worker（オフライン対応）
-└── manifest.json     # PWAマニフェスト
+├── index.html            # Viteのエントリ（<head>のメタ情報等）
+├── src/
+│   ├── main.tsx           # エントリポイント
+│   ├── App.tsx            # 画面遷移・状態管理の中心
+│   ├── types.ts           # 型定義
+│   ├── constants.ts
+│   ├── shuffle.ts
+│   ├── questionText.ts    # 穴埋めテキストのパース
+│   ├── style.css
+│   ├── data/loadData.ts   # questions.json / past_exams のfetch
+│   ├── hooks/              # localStorage永続化フック
+│   └── components/         # 画面コンポーネント
+├── public/
+│   ├── questions.json      # 穴埋め問題データ（章・節・問題）
+│   ├── past_exams/         # 過去問データ（短答式）
+│   └── icons/
+└── vite.config.ts          # vite-plugin-pwa の設定含む
 ```
 
 ## 問題データの追加
 
-[questions.json](questions.json) を編集します。
+[public/questions.json](public/questions.json) を編集します。
 
 ### 問題の追加
 
@@ -68,15 +87,31 @@ JRAS/
 }
 ```
 
-## Service Worker のキャッシュ更新
+## PWA / Service Worker
 
-`questions.json` などのファイルを変更した場合、[sw.js](sw.js) の `CACHE_NAME` のバージョンを上げると、ブラウザが新しいキャッシュを取得します。
-
-```js
-const CACHE_NAME = 'quiz-app-v0.0.3'; // バージョンを上げる
-```
+`vite-plugin-pwa` がビルド時にService Worker・manifestを自動生成します
+（コンテンツハッシュベースのキャッシュ更新のため、手動でのバージョン管理は不要です）。
 
 ## PWA としてインストール
 
 モバイル・デスクトップどちらでもホーム画面に追加（インストール）できます。
 オフラインでも動作します（初回アクセス後）。
+
+## デプロイ
+
+Cloudflare Pages 等の静的ホスティングにデプロイします。
+
+- ビルドコマンド: `npm run build`
+- 出力ディレクトリ: `dist`
+
+デプロイ後に発行されるHTTPS URLをiPhone Safariで開き、「ホーム画面に追加」してください。
+
+## 動作確認スクリプト
+
+`verify_checks.cjs`（Playwright）でクイズの主要フローを自動確認できます。
+
+```bash
+npm run build
+npm run preview -- --port 8091 &
+node verify_checks.cjs
+```
