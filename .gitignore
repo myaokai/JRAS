@@ -1,6 +1,7 @@
 data/
 不動産鑑定士試験_過去問/
 node_modules/
-package.json
-package-lock.json
 screenshots/
+dist/
+dev-dist/
+*.tsbuildinfo
