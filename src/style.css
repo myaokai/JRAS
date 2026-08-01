@@ -358,6 +358,34 @@ main {
 .blank::before         { content: '？'; color: var(--ink-3); font-size: 0.82em; }
 .blank.revealed::before { content: none; }
 
+/* ── Self assessment (穴埋め) ── */
+.assess-row {
+  display: flex;
+  gap: 12px;
+  padding-top: 20px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-lt);
+}
+
+.assess-btn {
+  flex: 1;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.assess-btn.known   { background: var(--ok-bg); border: 1px solid var(--ok); color: var(--ok); }
+.assess-btn.unknown { background: var(--ng-bg); border: 1px solid var(--ng); color: var(--ng); }
+
+.assess-btn.known.selected   { background: var(--ok); color: var(--surface); }
+.assess-btn.unknown.selected { background: var(--ng); color: var(--surface); }
+
+.assess-btn:disabled:not(.selected) { opacity: 0.4; cursor: default; }
+
 /* ── Controls ── */
 .controls {
   display: flex;

@@ -20,7 +20,7 @@ interface Props {
   filterWrong: boolean
   onToggleFilterWrong: () => void
   unlearnedCount: number
-  wrongIds: string[]
+  dueIds: string[]
   history: KakomonHistory
   onStart: () => void
 }
@@ -39,7 +39,7 @@ export function StartScreen({
   filterWrong,
   onToggleFilterWrong,
   unlearnedCount,
-  wrongIds,
+  dueIds,
   history,
   onStart,
 }: Props) {
@@ -97,7 +97,7 @@ export function StartScreen({
             btnId="filterWrongBtn"
             countId="filterWrongCount"
             label="直近の間違いを練習"
-            count={wrongIds.length}
+            count={dueIds.length}
             active={filterWrong}
             onToggle={onToggleFilterWrong}
           />
@@ -106,8 +106,8 @@ export function StartScreen({
             <p className="question-count">
               {filterWrong ? (
                 <>
-                  直近の間違い {wrongIds.length}問 から{' '}
-                  <strong>{Math.min(wrongIds.length, QUESTIONS_PER_QUIZ)}問</strong>{' '}
+                  直近の間違い {dueIds.length}問 から{' '}
+                  <strong>{Math.min(dueIds.length, QUESTIONS_PER_QUIZ)}問</strong>{' '}
                   出題します
                 </>
               ) : (

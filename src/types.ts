@@ -54,7 +54,9 @@ export interface QuizProgress {
 }
 
 export interface ProblemRecordEntry {
-  lastCorrect: boolean
+  box: number
+  dueDate: string
+  lastResult: boolean
   ts: number
 }
 
