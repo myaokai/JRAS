@@ -45,7 +45,7 @@ function validateQuestionsJson() {
     const chapter = data.chapters[String(q.chapter)]
     if (!chapter) {
       errors.push(`${label}: chapter=${q.chapter} が chapters に存在しません`)
-    } else if (!chapter.sections[String(q.section)]) {
+    } else if (!(String(q.section) in chapter.sections)) {
       errors.push(`${label}: section=${q.section} が chapter ${q.chapter} に存在しません`)
     }
 

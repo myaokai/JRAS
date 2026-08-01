@@ -44,14 +44,13 @@ export function QuizScreen({
 
   if (!current) return null
 
-  const categoryLabel =
-    mode === 'anaume' && !isKakomonQuestion(current)
-      ? `${chapters[current.chapter]?.title ?? ''} / ${
-          chapters[current.chapter]?.sections[current.section] ?? ''
-        }`
-      : isKakomonQuestion(current)
-        ? `${current._examLabel}　問${current.number}`
-        : ''
+  const categoryLabel = isKakomonQuestion(current)
+    ? `${current._examLabel}　問${current.number}`
+    : (() => {
+        const chapter = chapters[current.chapter]
+        const sectionTitle = chapter?.sections[current.section]
+        return sectionTitle ? `${chapter?.title ?? ''} / ${sectionTitle}` : (chapter?.title ?? '')
+      })()
 
   const revealAll = () => {
     if (isKakomonQuestion(current)) return
