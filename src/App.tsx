@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AnaumeQuestion, ExamMeta, KakomonQuestion, Mode, QuestionsData } from './types'
 import { loadExamData, loadExamIndex, loadQuestionsData } from './data/loadData'
-import { useQuizProgress } from './hooks/useQuizProgress'
 import { useProblemRecord } from './hooks/useProblemRecord'
 import { useKakomonHistory } from './hooks/useKakomonHistory'
+import { useHabitRecord } from './hooks/useHabitRecord'
 import { StartScreen } from './components/StartScreen'
 import { QuizScreen } from './components/QuizScreen'
 import { ResultScreen } from './components/ResultScreen'
@@ -29,9 +29,9 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [correctCount, setCorrectCount] = useState(0)
 
-  const { completedQuestions, markCompleted } = useQuizProgress()
-  const { updateProblemRecord, wrongIds } = useProblemRecord()
+  const { updateProblemRecord, isQuestionDue, dueIds } = useProblemRecord()
   const { history, addResult } = useKakomonHistory()
+  const { habitRecord, recordStudyAction } = useHabitRecord()
 
   useEffect(() => {
     loadQuestionsData()
@@ -52,20 +52,20 @@ function App() {
     })
   }, [])
 
-  const unlearnedCount = useMemo(() => {
+  const anaumeDueCount = useMemo(() => {
     if (!questionsData) return 0
     return questionsData.questions.filter(
-      (q) => selectedChapters.has(q.chapter) && !completedQuestions.includes(q.id),
+      (q) => selectedChapters.has(q.chapter) && isQuestionDue(String(q.id)),
     ).length
-  }, [questionsData, selectedChapters, completedQuestions])
+  }, [questionsData, selectedChapters, isQuestionDue])
 
   useEffect(() => {
-    if (unlearnedCount === 0 && filterUnlearned) setFilterUnlearned(false)
-  }, [unlearnedCount, filterUnlearned])
+    if (anaumeDueCount === 0 && filterUnlearned) setFilterUnlearned(false)
+  }, [anaumeDueCount, filterUnlearned])
 
   useEffect(() => {
-    if (wrongIds.length === 0 && filterWrong) setFilterWrong(false)
-  }, [wrongIds.length, filterWrong])
+    if (dueIds.length === 0 && filterWrong) setFilterWrong(false)
+  }, [dueIds.length, filterWrong])
 
   const handleModeChange = (m: Mode) => {
     setMode(m)
@@ -80,8 +80,8 @@ function App() {
     }
     let pool = questionsData.questions.filter((q) => selectedChapters.has(q.chapter))
     if (filterUnlearned) {
-      const unlearned = pool.filter((q) => !completedQuestions.includes(q.id))
-      if (unlearned.length > 0) pool = unlearned
+      const due = pool.filter((q) => isQuestionDue(String(q.id)))
+      if (due.length > 0) pool = due
     }
     if (pool.length === 0) {
       alert('選択した章に問題がありません')
@@ -98,13 +98,13 @@ function App() {
   }
 
   const startKakomonFilteredQuiz = async () => {
-    if (wrongIds.length === 0) {
+    if (dueIds.length === 0) {
       alert('練習する間違い問題がありません')
       return
     }
-    const examsNeeded = examIndex.filter((e) => wrongIds.some((id) => id.startsWith(e.id)))
+    const examsNeeded = examIndex.filter((e) => dueIds.some((id) => id.startsWith(e.id)))
     const allQuestions = await loadQuestionsFromExams(examsNeeded)
-    const filteredQuestions = allQuestions.filter((q) => wrongIds.includes(q.id))
+    const filteredQuestions = allQuestions.filter((q) => dueIds.includes(q.id))
     if (filteredQuestions.length === 0) {
       alert('問題を読み込めませんでした')
       return
@@ -175,6 +175,7 @@ function App() {
             onModeChange={handleModeChange}
             questionsData={questionsData}
             examIndex={examIndex}
+            habitRecord={habitRecord}
             selectedChapters={selectedChapters}
             onChaptersChange={setSelectedChapters}
             selectedExams={selectedExams}
@@ -183,8 +184,8 @@ function App() {
             onToggleFilterUnlearned={() => setFilterUnlearned((v) => !v)}
             filterWrong={filterWrong}
             onToggleFilterWrong={() => setFilterWrong((v) => !v)}
-            unlearnedCount={unlearnedCount}
-            wrongIds={wrongIds}
+            unlearnedCount={anaumeDueCount}
+            dueIds={dueIds}
             history={history}
             onStart={handleStart}
           />
@@ -196,10 +197,14 @@ function App() {
             currentQuestions={currentQuestions}
             currentIndex={currentIndex}
             onNext={handleNext}
-            onAnaumeAllRevealed={markCompleted}
+            onAnaumeAssessed={(questionId, correct) => {
+              updateProblemRecord(String(questionId), correct)
+              recordStudyAction()
+            }}
             onKakomonAnswered={(questionId, correct) => {
               updateProblemRecord(questionId, correct)
               if (correct) setCorrectCount((c) => c + 1)
+              recordStudyAction()
             }}
           />
         )}

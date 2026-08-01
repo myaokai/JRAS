@@ -1,16 +1,18 @@
-import type { ExamMeta, KakomonHistory, Mode, QuestionsData } from '../types'
+import type { ExamMeta, HabitRecord, KakomonHistory, Mode, QuestionsData } from '../types'
 import { QUESTIONS_PER_QUIZ } from '../constants'
 import { ModeTabs } from './ModeTabs'
 import { ChapterSelector } from './ChapterSelector'
 import { ExamSelector } from './ExamSelector'
 import { FilterBar } from './FilterBar'
 import { KakomonHistoryList } from './KakomonHistoryList'
+import { HabitWidget } from './HabitWidget'
 
 interface Props {
   mode: Mode
   onModeChange: (mode: Mode) => void
   questionsData: QuestionsData
   examIndex: ExamMeta[]
+  habitRecord: HabitRecord
   selectedChapters: Set<number>
   onChaptersChange: (next: Set<number>) => void
   selectedExams: Set<string>
@@ -20,7 +22,7 @@ interface Props {
   filterWrong: boolean
   onToggleFilterWrong: () => void
   unlearnedCount: number
-  wrongIds: string[]
+  dueIds: string[]
   history: KakomonHistory
   onStart: () => void
 }
@@ -30,6 +32,7 @@ export function StartScreen({
   onModeChange,
   questionsData,
   examIndex,
+  habitRecord,
   selectedChapters,
   onChaptersChange,
   selectedExams,
@@ -39,12 +42,13 @@ export function StartScreen({
   filterWrong,
   onToggleFilterWrong,
   unlearnedCount,
-  wrongIds,
+  dueIds,
   history,
   onStart,
 }: Props) {
   return (
     <div id="startScreen" className="screen">
+      <HabitWidget habitRecord={habitRecord} />
       <ModeTabs mode={mode} onChange={onModeChange} />
       <h2>学習を始めましょう</h2>
       <p>
@@ -97,7 +101,7 @@ export function StartScreen({
             btnId="filterWrongBtn"
             countId="filterWrongCount"
             label="直近の間違いを練習"
-            count={wrongIds.length}
+            count={dueIds.length}
             active={filterWrong}
             onToggle={onToggleFilterWrong}
           />
@@ -106,8 +110,8 @@ export function StartScreen({
             <p className="question-count">
               {filterWrong ? (
                 <>
-                  直近の間違い {wrongIds.length}問 から{' '}
-                  <strong>{Math.min(wrongIds.length, QUESTIONS_PER_QUIZ)}問</strong>{' '}
+                  直近の間違い {dueIds.length}問 から{' '}
+                  <strong>{Math.min(dueIds.length, QUESTIONS_PER_QUIZ)}問</strong>{' '}
                   出題します
                 </>
               ) : (

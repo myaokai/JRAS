@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useLocalStorageState } from './useLocalStorageState'
+import { isDue, nextEntry } from '../leitner'
 import type { ProblemRecord } from '../types'
 
 const PROBLEM_RECORD_KEY = 'problemRecord'
@@ -13,17 +14,16 @@ export function useProblemRecord() {
   const updateProblemRecord = (questionId: string, correct: boolean) => {
     setProblemRecord((prev) => ({
       ...prev,
-      [questionId]: { lastCorrect: correct, ts: Date.now() },
+      [questionId]: nextEntry(prev[questionId], correct),
     }))
   }
 
-  const wrongIds = useMemo(
-    () =>
-      Object.entries(problemRecord)
-        .filter(([, r]) => !r.lastCorrect)
-        .map(([id]) => id),
+  const isQuestionDue = (questionId: string) => isDue(problemRecord[questionId])
+
+  const dueIds = useMemo(
+    () => Object.keys(problemRecord).filter((id) => isDue(problemRecord[id])),
     [problemRecord],
   )
 
-  return { problemRecord, updateProblemRecord, wrongIds }
+  return { problemRecord, updateProblemRecord, isQuestionDue, dueIds }
 }

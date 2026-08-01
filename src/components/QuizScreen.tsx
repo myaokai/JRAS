@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AnaumeQuestion, Chapter, KakomonQuestion, Mode } from '../types'
 import { isKakomonQuestion } from '../types'
 import { getBlankIds } from '../questionText'
@@ -11,7 +11,7 @@ interface Props {
   currentQuestions: (AnaumeQuestion | KakomonQuestion)[]
   currentIndex: number
   onNext: () => void
-  onAnaumeAllRevealed: (questionId: number) => void
+  onAnaumeAssessed: (questionId: number, correct: boolean) => void
   onKakomonAnswered: (questionId: string, correct: boolean) => void
 }
 
@@ -21,25 +21,26 @@ export function QuizScreen({
   currentQuestions,
   currentIndex,
   onNext,
-  onAnaumeAllRevealed,
+  onAnaumeAssessed,
   onKakomonAnswered,
 }: Props) {
   const current = currentQuestions[currentIndex]
   const [revealedBlankIds, setRevealedBlankIds] = useState<Set<string>>(new Set())
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [assessed, setAssessed] = useState<boolean | null>(null)
 
   useEffect(() => {
     setRevealedBlankIds(new Set())
     setSelectedKey(null)
+    setAssessed(null)
   }, [currentIndex])
 
-  useEffect(() => {
-    if (mode !== 'anaume' || isKakomonQuestion(current)) return
-    const blankIds = getBlankIds(current.text, current.id)
-    if (blankIds.length > 0 && blankIds.every((id) => revealedBlankIds.has(id))) {
-      onAnaumeAllRevealed(current.id)
-    }
-  }, [mode, current, revealedBlankIds, onAnaumeAllRevealed])
+  const blankIds = useMemo(
+    () => (!isKakomonQuestion(current) ? getBlankIds(current.text, current.id) : []),
+    [current],
+  )
+  const allRevealed =
+    blankIds.length > 0 && blankIds.every((id) => revealedBlankIds.has(id))
 
   if (!current) return null
 
@@ -55,6 +56,12 @@ export function QuizScreen({
   const revealAll = () => {
     if (isKakomonQuestion(current)) return
     setRevealedBlankIds(new Set(getBlankIds(current.text, current.id)))
+  }
+
+  const assess = (correct: boolean) => {
+    if (assessed !== null || isKakomonQuestion(current)) return
+    setAssessed(correct)
+    onAnaumeAssessed(current.id, correct)
   }
 
   return (
@@ -84,6 +91,27 @@ export function QuizScreen({
             setRevealedBlankIds((prev) => new Set(prev).add(id))
           }
         />
+      )}
+
+      {mode === 'anaume' && allRevealed && (
+        <div className="assess-row">
+          <button
+            className={`assess-btn known${assessed === true ? ' selected' : ''}`}
+            onClick={() => assess(true)}
+            disabled={assessed !== null}
+            type="button"
+          >
+            わかった
+          </button>
+          <button
+            className={`assess-btn unknown${assessed === false ? ' selected' : ''}`}
+            onClick={() => assess(false)}
+            disabled={assessed !== null}
+            type="button"
+          >
+            わからなかった
+          </button>
+        </div>
       )}
 
       <div className="controls">

@@ -49,12 +49,18 @@ export interface ExamData {
 
 export type Mode = 'anaume' | 'kakomon'
 
-export interface QuizProgress {
-  completedQuestions: number[]
+export interface HabitRecord {
+  lastStudyDate: string
+  currentStreak: number
+  longestStreak: number
+  todayDate: string
+  todayCount: number
 }
 
 export interface ProblemRecordEntry {
-  lastCorrect: boolean
+  box: number
+  dueDate: string
+  lastResult: boolean
   ts: number
 }
 
