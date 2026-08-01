@@ -474,6 +474,33 @@ main {
 .choice-btn.choice-wrong                { background: var(--ng-bg); }
 .choice-btn.choice-wrong .choice-key    { color: var(--ng); }
 
+.choice-tag {
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: 12px;
+  padding: 3px 9px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 999px;
+}
+
+.choice-correct .choice-tag { background: var(--ok); color: var(--surface); }
+.choice-wrong .choice-tag   { background: var(--ng); color: var(--surface); }
+
+/* ── Answer feedback (過去問) ── */
+.answer-feedback {
+  margin-top: -6px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  border-radius: var(--r);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.answer-feedback.correct { background: var(--ok-bg); color: var(--ok); }
+.answer-feedback.wrong   { background: var(--ng-bg); color: var(--ng); }
+
 /* ── Result Screen ── */
 #resultScreen {
   text-align: center;

@@ -8,6 +8,7 @@ interface Props {
 
 export function KakomonQuestionView({ question, selectedKey, onSelect }: Props) {
   const answered = selectedKey !== null
+  const isCorrect = answered && selectedKey === question.answer
 
   return (
     <>
@@ -22,9 +23,15 @@ export function KakomonQuestionView({ question, selectedKey, onSelect }: Props) 
       <div className="choices-container" id="choicesContainer">
         {question.choices.map((choice) => {
           let cls = 'choice-btn'
+          let tag: string | null = null
           if (answered) {
-            if (choice.key === question.answer) cls += ' choice-correct'
-            else if (choice.key === selectedKey) cls += ' choice-wrong'
+            if (choice.key === question.answer) {
+              cls += ' choice-correct'
+              tag = '正解'
+            } else if (choice.key === selectedKey) {
+              cls += ' choice-wrong'
+              tag = 'あなたの回答'
+            }
           }
           return (
             <button
@@ -35,10 +42,16 @@ export function KakomonQuestionView({ question, selectedKey, onSelect }: Props) 
             >
               <span className="choice-key">{choice.key}</span>
               <span className="choice-text">{choice.text}</span>
+              {tag && <span className="choice-tag">{tag}</span>}
             </button>
           )
         })}
       </div>
+      {answered && (
+        <div className={`answer-feedback${isCorrect ? ' correct' : ' wrong'}`}>
+          {isCorrect ? '正解！' : `不正解（正解: ${question.answer}）`}
+        </div>
+      )}
     </>
   )
 }
