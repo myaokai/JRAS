@@ -165,7 +165,7 @@ function App() {
           onClick={() => setScreen('start')}
           type="button"
         >
-          リセット
+          ホームへ戻る
         </button>
       </header>
       <main>
