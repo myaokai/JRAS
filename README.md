@@ -47,6 +47,9 @@ JRAS/
 │   ├── questions.json      # 穴埋め問題データ（章・節・問題）
 │   ├── past_exams/         # 過去問データ（短答式）
 │   └── icons/
+├── scripts/
+│   ├── validate_questions.js  # 問題データの整合性チェック
+│   └── download_kanteishi.py  # 過去問PDFのダウンロード
 └── vite.config.ts          # vite-plugin-pwa の設定含む
 ```
 
@@ -86,6 +89,27 @@ JRAS/
   }
 }
 ```
+
+## データ検証
+
+`public/questions.json` / `public/past_exams/*.json` を編集したら、コミット前に検証スクリプトを実行してください。
+
+```bash
+node scripts/validate_questions.js
+```
+
+以下をチェックします。
+
+- `questions.json`: id の重複、`chapter`/`section` が `chapters` に存在するか、`{{...}}` の対応
+- `past_exams/*.json`: id の重複・命名規則(`{examId}_{3桁連番}`)、`answer` が `choices` に存在するか、`index.json` の `count` と実際の問題数の一致
+
+## 過去問データの追加手順（次年度分など）
+
+1. `scripts/download_kanteishi.py` で国土交通省サイトから過去問PDFを取得（`不動産鑑定士試験_過去問/`配下、gitignore対象）
+2. PDFから問題・選択肢・正解を抽出し、既存の`public/past_exams/*.json`と同じ形式でJSON化
+3. `public/past_exams/index.json` に新しいエントリを追加
+4. `node scripts/validate_questions.js` で検証
+5. `npm run build` でビルドが通ることを確認（`vite-plugin-pwa`がキャッシュを自動更新するため、手動でのバージョン管理は不要）
 
 ## PWA / Service Worker
 
