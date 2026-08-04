@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AnaumeQuestion, ExamMeta, KakomonQuestion, Mode, QuestionsData } from './types'
-import { loadExamData, loadExamIndex, loadQuestionsData } from './data/loadData'
+import type { AnaumeQuestion, ExamMeta, KakomonQuestion, KijunData, Mode, QuestionsData } from './types'
+import { loadExamData, loadExamIndex, loadKijunData, loadQuestionsData } from './data/loadData'
 import { useProblemRecord } from './hooks/useProblemRecord'
 import { useKakomonHistory } from './hooks/useKakomonHistory'
 import { useHabitRecord } from './hooks/useHabitRecord'
 import { StartScreen } from './components/StartScreen'
 import { QuizScreen } from './components/QuizScreen'
 import { ResultScreen } from './components/ResultScreen'
+import { TextbookScreen } from './components/TextbookScreen'
 import { shuffled } from './shuffle'
 import { QUESTIONS_PER_QUIZ } from './constants'
 
@@ -15,6 +16,7 @@ type QuizItem = AnaumeQuestion | KakomonQuestion
 
 function App() {
   const [questionsData, setQuestionsData] = useState<QuestionsData | null>(null)
+  const [kijunData, setKijunData] = useState<KijunData | null>(null)
   const [examIndex, setExamIndex] = useState<ExamMeta[]>([])
 
   const [mode, setMode] = useState<Mode>('anaume')
@@ -45,6 +47,10 @@ function App() {
         setSelectedChapters(chaptersWithQuestions)
       })
       .catch((e) => console.error('問題データの読み込みに失敗しました', e))
+
+    loadKijunData()
+      .then(setKijunData)
+      .catch((e) => console.error('教科書データの読み込みに失敗しました', e))
 
     loadExamIndex().then((exams) => {
       setExamIndex(exams)
@@ -153,7 +159,7 @@ function App() {
     }
   }
 
-  if (!questionsData) return null
+  if (!questionsData || !kijunData) return null
 
   return (
     <div className="container" id="appContainer">
@@ -169,52 +175,58 @@ function App() {
         </button>
       </header>
       <main>
-        {screen === 'start' && (
-          <StartScreen
-            mode={mode}
-            onModeChange={handleModeChange}
-            questionsData={questionsData}
-            examIndex={examIndex}
-            habitRecord={habitRecord}
-            selectedChapters={selectedChapters}
-            onChaptersChange={setSelectedChapters}
-            selectedExams={selectedExams}
-            onExamsChange={setSelectedExams}
-            filterUnlearned={filterUnlearned}
-            onToggleFilterUnlearned={() => setFilterUnlearned((v) => !v)}
-            filterWrong={filterWrong}
-            onToggleFilterWrong={() => setFilterWrong((v) => !v)}
-            unlearnedCount={anaumeDueCount}
-            dueIds={dueIds}
-            history={history}
-            onStart={handleStart}
-          />
-        )}
-        {screen === 'quiz' && (
-          <QuizScreen
-            mode={mode}
-            chapters={questionsData.chapters}
-            currentQuestions={currentQuestions}
-            currentIndex={currentIndex}
-            onNext={handleNext}
-            onAnaumeAssessed={(questionId, correct) => {
-              updateProblemRecord(String(questionId), correct)
-              recordStudyAction()
-            }}
-            onKakomonAnswered={(questionId, correct) => {
-              updateProblemRecord(questionId, correct)
-              if (correct) setCorrectCount((c) => c + 1)
-              recordStudyAction()
-            }}
-          />
-        )}
-        {screen === 'result' && (
-          <ResultScreen
-            mode={mode}
-            total={currentQuestions.length}
-            correctCount={correctCount}
-            onRetry={() => setScreen('start')}
-          />
+        {mode === 'textbook' ? (
+          <TextbookScreen mode={mode} onModeChange={handleModeChange} kijunData={kijunData} />
+        ) : (
+          <>
+            {screen === 'start' && (
+              <StartScreen
+                mode={mode}
+                onModeChange={handleModeChange}
+                questionsData={questionsData}
+                examIndex={examIndex}
+                habitRecord={habitRecord}
+                selectedChapters={selectedChapters}
+                onChaptersChange={setSelectedChapters}
+                selectedExams={selectedExams}
+                onExamsChange={setSelectedExams}
+                filterUnlearned={filterUnlearned}
+                onToggleFilterUnlearned={() => setFilterUnlearned((v) => !v)}
+                filterWrong={filterWrong}
+                onToggleFilterWrong={() => setFilterWrong((v) => !v)}
+                unlearnedCount={anaumeDueCount}
+                dueIds={dueIds}
+                history={history}
+                onStart={handleStart}
+              />
+            )}
+            {screen === 'quiz' && (
+              <QuizScreen
+                mode={mode}
+                chapters={questionsData.chapters}
+                currentQuestions={currentQuestions}
+                currentIndex={currentIndex}
+                onNext={handleNext}
+                onAnaumeAssessed={(questionId, correct) => {
+                  updateProblemRecord(String(questionId), correct)
+                  recordStudyAction()
+                }}
+                onKakomonAnswered={(questionId, correct) => {
+                  updateProblemRecord(questionId, correct)
+                  if (correct) setCorrectCount((c) => c + 1)
+                  recordStudyAction()
+                }}
+              />
+            )}
+            {screen === 'result' && (
+              <ResultScreen
+                mode={mode}
+                total={currentQuestions.length}
+                correctCount={correctCount}
+                onRetry={() => setScreen('start')}
+              />
+            )}
+          </>
         )}
       </main>
     </div>

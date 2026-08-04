@@ -47,7 +47,20 @@ export interface ExamData {
   questions: KakomonQuestion[]
 }
 
-export type Mode = 'anaume' | 'kakomon'
+export type Mode = 'anaume' | 'kakomon' | 'textbook'
+
+export interface KijunSection {
+  title: string
+  text: string
+}
+
+export interface KijunChapter {
+  title: string
+  intro: string
+  sections: Record<string, KijunSection>
+}
+
+export type KijunData = Record<string, KijunChapter>
 
 export interface HabitRecord {
   lastStudyDate: string

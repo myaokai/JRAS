@@ -322,6 +322,24 @@ main {
 /* ── Quiz Screen ── */
 #quizScreen { max-width: 600px; margin: 0 auto; }
 
+/* ── Textbook Screen ── */
+#textbookScreen { max-width: 640px; margin: 0 auto; }
+#textbookScreen h2 { margin: 20px 0 6px; font-size: 1.05rem; font-weight: 500; }
+#textbookScreen > p { color: var(--ink-2); font-size: 0.85rem; margin-bottom: 16px; }
+
+.textbook-body {
+  margin: 20px 0 8px;
+}
+
+.textbook-body p {
+  font-size: 0.95rem;
+  line-height: 2;
+  color: var(--ink);
+  margin-bottom: 1.4em;
+}
+
+.textbook-body p:last-child { margin-bottom: 0; }
+
 .question-header {
   display: flex;
   justify-content: space-between;
