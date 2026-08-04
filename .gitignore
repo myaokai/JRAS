@@ -6,3 +6,4 @@ dist/
 dev-dist/
 *.tsbuildinfo
 .wrangler/
+__pycache__/
