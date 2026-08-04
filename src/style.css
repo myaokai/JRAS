@@ -340,6 +340,23 @@ main {
 
 .textbook-body p:last-child { margin-bottom: 0; }
 
+.textbook-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 20px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-lt);
+}
+
+.textbook-nav .btn-secondary {
+  flex: 1;
+  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .question-header {
   display: flex;
   justify-content: space-between;

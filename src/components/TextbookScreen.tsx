@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { KijunData, Mode } from '../types'
 import { ModeTabs } from './ModeTabs'
 
@@ -13,8 +13,31 @@ type View =
   | { level: 'chapter'; chapterId: string }
   | { level: 'section'; chapterId: string; sectionId: string }
 
+interface Leaf {
+  chapterId: string
+  sectionId: string | null
+}
+
 function sortedIds(ids: string[]): string[] {
   return [...ids].sort((a, b) => Number(a) - Number(b))
+}
+
+function buildLeaves(kijunData: KijunData): Leaf[] {
+  const leaves: Leaf[] = []
+  for (const chapterId of sortedIds(Object.keys(kijunData))) {
+    const sectionIds = sortedIds(Object.keys(kijunData[chapterId].sections))
+    if (sectionIds.length === 0) {
+      leaves.push({ chapterId, sectionId: null })
+    } else {
+      sectionIds.forEach((sectionId) => leaves.push({ chapterId, sectionId }))
+    }
+  }
+  return leaves
+}
+
+function leafTitle(kijunData: KijunData, leaf: Leaf): string {
+  const chapter = kijunData[leaf.chapterId]
+  return leaf.sectionId ? chapter.sections[leaf.sectionId].title : chapter.title
 }
 
 function TextbookBody({ text }: { text: string }) {
@@ -29,6 +52,40 @@ function TextbookBody({ text }: { text: string }) {
 
 export function TextbookScreen({ mode, onModeChange, kijunData }: Props) {
   const [view, setView] = useState<View>({ level: 'chapters' })
+  const leaves = useMemo(() => buildLeaves(kijunData), [kijunData])
+
+  const goToLeaf = (leaf: Leaf) => {
+    setView(
+      leaf.sectionId
+        ? { level: 'section', chapterId: leaf.chapterId, sectionId: leaf.sectionId }
+        : { level: 'chapter', chapterId: leaf.chapterId },
+    )
+  }
+
+  const renderLeafNav = (chapterId: string, sectionId: string | null) => {
+    const index = leaves.findIndex(
+      (l) => l.chapterId === chapterId && l.sectionId === sectionId,
+    )
+    const prev = index > 0 ? leaves[index - 1] : null
+    const next = index >= 0 && index < leaves.length - 1 ? leaves[index + 1] : null
+    if (!prev && !next) return null
+    return (
+      <div className="textbook-nav">
+        {prev ? (
+          <button className="btn-secondary" onClick={() => goToLeaf(prev)} type="button">
+            ← {leafTitle(kijunData, prev)}
+          </button>
+        ) : (
+          <span />
+        )}
+        {next && (
+          <button className="btn-secondary" onClick={() => goToLeaf(next)} type="button">
+            {leafTitle(kijunData, next)} →
+          </button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="screen" id="textbookScreen">
@@ -86,6 +143,7 @@ export function TextbookScreen({ mode, onModeChange, kijunData }: Props) {
                   </div>
                 </div>
               )}
+              {sectionIds.length === 0 && renderLeafNav(view.chapterId, null)}
             </>
           )
         })()}
@@ -105,6 +163,7 @@ export function TextbookScreen({ mode, onModeChange, kijunData }: Props) {
               </button>
               <h2>{section.title}</h2>
               <TextbookBody text={section.text} />
+              {renderLeafNav(view.chapterId, view.sectionId)}
             </>
           )
         })()}
