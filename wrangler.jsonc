@@ -1,5 +1,5 @@
 {
-  "name": "jras-quiz",
+  "name": "jras",
   "compatibility_date": "2026-08-01",
   "assets": {
     "directory": "./dist",
