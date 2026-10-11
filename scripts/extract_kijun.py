@@ -37,8 +37,36 @@ PARA_MARKER_PATTERNS = [
 ]
 
 
+# 「（ア）から（ケ）までに掲げる事項」のような文中の参照は、行頭にあっても段落の頭ではない
+REFERENCE_RE = re.compile(r"^（[^）]+）から")
+
+
 def is_para_marker(line: str) -> bool:
-    return any(p.match(line) for p in PARA_MARKER_PATTERNS)
+    return not REFERENCE_RE.match(line) and any(p.match(line) for p in PARA_MARKER_PATTERNS)
+
+
+# 本文の1行は約38字。これより明らかに短く「。」を含まないマーカー行は、
+# 見出し（Ⅰ 需要と供給の原則、１．住宅地域 など）か列記の1項目として独立させる。
+HEADING_MAX_LEN = 30
+
+
+# 文の頭には来ない文字。次の行がこれで始まるときは、短い行でも文の途中とみなす
+# （例：「（３）その不動産に対する有効需要」の次の行「の三者の相関結合によって…」）。
+CONTINUATION_START = tuple("のをにがはとる、。）")
+
+
+def is_heading(line: str, next_line: str) -> bool:
+    return (
+        is_para_marker(line)
+        and "。" not in line
+        and len(norm(line)) <= HEADING_MAX_LEN
+        and not next_line.startswith(CONTINUATION_START)
+    )
+
+
+# ページの境目。直前の段落が文末で終わっていなければ、段落を切らずに次のページへつなげる。
+PAGE_BREAK = "\f"
+SENTENCE_END = ("。", "：", "）", "」")
 
 
 def to_ascii_digits(s: str) -> str:
@@ -50,15 +78,24 @@ def norm(s: str) -> str:
 
 
 def extract_lines(pdf_path: Path) -> list[str]:
+    """PDFを行に分ける。ページの境目には PAGE_BREAK を挟み、境目の前後の空行は取り除く。"""
     raw = subprocess.run(
         ["pdftotext", "-layout", str(pdf_path), "-"], capture_output=True, check=True
     ).stdout.decode("utf-8")
     lines: list[str] = []
     for page in raw.split("\f"):
-        for line in page.split("\n"):
-            if re.fullmatch(r"[0-9０-９]+", line.strip()):
-                continue  # ページ番号のみの行
-            lines.append(line)
+        page_lines = [
+            line
+            for line in page.split("\n")
+            if not re.fullmatch(r"[0-9０-９]+", line.strip())  # ページ番号のみの行
+        ]
+        while page_lines and not page_lines[0].strip():
+            page_lines.pop(0)
+        while page_lines and not page_lines[-1].strip():
+            page_lines.pop()
+        if lines:
+            lines.append(PAGE_BREAK)
+        lines.extend(page_lines)
     return lines
 
 
@@ -87,7 +124,17 @@ def parse_body(body_lines: list[str]) -> dict:
                 ch["sections"][current_section_id]["text"] = text
         paragraphs.clear()
 
-    for raw_line in body_lines:
+    def next_text(i: int) -> str:
+        for line in body_lines[i + 1 :]:
+            if line != PAGE_BREAK and line.strip():
+                return line.strip()
+        return ""
+
+    for i, raw_line in enumerate(body_lines):
+        if raw_line == PAGE_BREAK:
+            if not (current_para_lines and not current_para_lines[-1].endswith(SENTENCE_END)):
+                flush_para()
+            continue
         stripped = raw_line.rstrip().strip()
         n = norm(stripped)
 
@@ -112,11 +159,10 @@ def parse_body(body_lines: list[str]) -> dict:
                 current_section_id = None
                 fusoku_seen = True
                 if fm.group(1):
-                    flush_para()
-                    current_para_lines.append(stripped)
+                    paragraphs.append(stripped)
             else:
                 flush_para()
-                current_para_lines.append(stripped)
+                paragraphs.append(stripped)
             continue
 
         m = CHAPTER_RE.match(stripped)
@@ -145,6 +191,11 @@ def parse_body(body_lines: list[str]) -> dict:
             flush_para()
             continue
 
+        if is_heading(stripped, next_text(i)):
+            flush_para()
+            paragraphs.append(stripped)
+            continue
+
         if is_para_marker(stripped):
             flush_para()
             current_para_lines.append(stripped)
@@ -156,10 +207,8 @@ def parse_body(body_lines: list[str]) -> dict:
     return chapters
 
 
-# 分数・数式はPDF上で図形的に組まれており、テキストとして正しく抽出できないため、
 # 分数の数式や表はPDF上で図形的に組まれていたり、縦書きの見出しセルが行ごとに
 # 分断されたりして、レイアウト保持のテキスト抽出では正しく再現できない。
-# また、ページの版面の都合で文の途中に空行が挟まり、段落が分断される箇所もある。
 # これらは該当箇所のみ手動で正しい内容に置き換える。
 # 各エントリ: (開始段落の先頭一致文字列, 終了段落の先頭一致文字列, 置き換え後の段落リスト)
 TEXT_FIXES: dict[tuple[str, str], list[tuple[str, str, list[str]]]] = {
@@ -174,37 +223,6 @@ TEXT_FIXES: dict[tuple[str, str], list[tuple[str, str, list[str]]]] = {
         ),
         # 復帰価格の数式
         ("P =", "P =", ["PR = a(n+1) ÷ Rn"]),
-    ],
-    ("9", "2"): [
-        # ページ境界で「しなければ」「ならない。」に分断されていた文を結合
-        (
-            "４．試算価格又は試算賃料の調整に関する事項",
-            "ならない。",
-            [
-                "４．試算価格又は試算賃料の調整に関する事項試算価格又は試算賃料の再吟味"
-                "及び説得力に係る判断の結果を記載しなければならない。",
-            ],
-        ),
-    ],
-    ("10", "1"): [
-        # ページ境界で「でき」「る。」に分断されていた文を結合
-        (
-            "２．建付地建付地は、建物等と結合して有機的にその効用を発揮しているため",
-            "る。",
-            [
-                "２．建付地建付地は、建物等と結合して有機的にその効用を発揮しているため、"
-                "建物等と密接な関連を持つものであり、したがって、建付地の鑑定評価は、建"
-                "物等と一体として継続使用することが合理的である場合において、その敷地"
-                "（建物等に係る敷地利用権原のほか、地役権等の使用収益を制約する権利が付"
-                "着している場合にはその状態を所与とする。）について部分鑑定評価をするも"
-                "のである。建付地の鑑定評価額は、更地の価格をもとに当該建付地の更地とし"
-                "ての最有効使用との格差、更地化の難易の程度等敷地と建物等との関連性を考"
-                "慮して求めた価格を標準とし、配分法に基づく比準価格及び土地残余法による"
-                "収益価格を比較考量して決定するものとする。ただし、建物及びその敷地とし"
-                "ての価格（以下「複合不動産価格」という。）をもとに敷地に帰属する額を配"
-                "分して求めた価格を標準として決定することもできる。",
-            ],
-        ),
     ],
     ("12", "5"): [
         # ＤＣＦ法の収益費用項目の表（縦書きの見出しセル「運営収益」「運営費用」が
