@@ -53,6 +53,40 @@ function validateQuestionsJson() {
   }
 
   console.log(`questions.json: ${data.questions.length}問を検証しました`)
+  return data
+}
+
+// 節ごとの穴埋め問題の下限。本文が短い節（1〜2文）は1問でよい。
+const MIN_QUESTIONS = 3
+const SHORT_SECTION_CHARS = 300
+
+// questions.json の章・節が kijun.json に本文付きで収録されているか、節ごとの問題数が足りているかを確かめる
+function validateCoverage(questionsData) {
+  const kijun = readJson('kijun.json')
+
+  for (const [chapterId, chapter] of Object.entries(questionsData.chapters)) {
+    const kChapter = kijun[chapterId]
+    if (!kChapter) {
+      errors.push(`kijun.json: 章 ${chapterId}（${chapter.title}）が収録されていません`)
+      continue
+    }
+    for (const sectionId of Object.keys(chapter.sections)) {
+      // 節のない章（総論第4章）は section "0" とし、章の前文を本文とみなす
+      const body = sectionId === '0' ? kChapter.intro : kChapter.sections[sectionId]?.text
+      const label = `${chapter.title} ${sectionId === '0' ? '' : `第${sectionId}節`}`.trim()
+      if (!body) {
+        errors.push(`kijun.json: ${label} の本文が空です`)
+        continue
+      }
+      const min = body.length < SHORT_SECTION_CHARS ? 1 : MIN_QUESTIONS
+      const count = questionsData.questions.filter(
+        (q) => String(q.chapter) === chapterId && String(q.section) === sectionId,
+      ).length
+      if (count < min) errors.push(`questions.json: ${label} の問題が${count}問です（${min}問以上必要）`)
+    }
+  }
+
+  console.log(`kijun.json: ${Object.keys(questionsData.chapters).length}章の本文と節ごとの問題数を検証しました`)
 }
 
 function validatePastExams() {
@@ -93,7 +127,7 @@ function validatePastExams() {
   console.log(`past_exams: ${index.length}ファイル・${globalIds.size}問を検証しました`)
 }
 
-validateQuestionsJson()
+validateCoverage(validateQuestionsJson())
 validatePastExams()
 
 if (errors.length > 0) {
