@@ -1,22 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AnaumeQuestion, Chapter, KakomonQuestion, Mode } from '../types'
+import type { AnaumeQuestion, Chapter, KakomonQuestion } from '../types'
 import { isKakomonQuestion } from '../types'
+import type { Navigate } from '../route'
 import { getBlankIds } from '../questionText'
 import { AnaumeQuestionView } from './AnaumeQuestionView'
 import { KakomonQuestionView } from './KakomonQuestionView'
+import { AppShell } from './layout/AppShell'
+import { ProgressBar } from './ui'
 
 interface Props {
-  mode: Mode
+  navigate: Navigate
   chapters: Record<string, Chapter>
   currentQuestions: (AnaumeQuestion | KakomonQuestion)[]
   currentIndex: number
   onNext: () => void
   onAnaumeAssessed: (questionId: number, correct: boolean) => void
-  onKakomonAnswered: (questionId: string, correct: boolean) => void
+  onKakomonAnswered: (questionId: string, choice: string, correct: boolean) => void
 }
 
 export function QuizScreen({
-  mode,
+  navigate,
   chapters,
   currentQuestions,
   currentIndex,
@@ -36,15 +39,15 @@ export function QuizScreen({
   }, [currentIndex])
 
   const blankIds = useMemo(
-    () => (!isKakomonQuestion(current) ? getBlankIds(current.text, current.id) : []),
+    () => (current && !isKakomonQuestion(current) ? getBlankIds(current.text, current.id) : []),
     [current],
   )
-  const allRevealed =
-    blankIds.length > 0 && blankIds.every((id) => revealedBlankIds.has(id))
+  const allRevealed = blankIds.length > 0 && blankIds.every((id) => revealedBlankIds.has(id))
 
   if (!current) return null
+  const kakomon = isKakomonQuestion(current)
 
-  const categoryLabel = isKakomonQuestion(current)
+  const categoryLabel = kakomon
     ? `${current._examLabel}　問${current.number}`
     : (() => {
         const chapter = chapters[current.chapter]
@@ -52,83 +55,85 @@ export function QuizScreen({
         return sectionTitle ? `${chapter?.title ?? ''} / ${sectionTitle}` : (chapter?.title ?? '')
       })()
 
-  const revealAll = () => {
-    if (isKakomonQuestion(current)) return
-    setRevealedBlankIds(new Set(getBlankIds(current.text, current.id)))
-  }
-
   const assess = (correct: boolean) => {
-    if (assessed !== null || isKakomonQuestion(current)) return
+    if (assessed !== null || kakomon) return
     setAssessed(correct)
     onAnaumeAssessed(current.id, correct)
   }
 
+  const isLast = currentIndex + 1 >= currentQuestions.length
+  const nextLabel = isLast ? '結果を見る' : '次の問題'
+
+  let footer
+  if (kakomon) {
+    footer = (
+      <button id="nextBtn" className="btn-primary btn-block" onClick={onNext} disabled={selectedKey === null} type="button">
+        {nextLabel}
+      </button>
+    )
+  } else if (!allRevealed) {
+    footer = (
+      <button id="showAllBtn" className="btn-secondary btn-block" onClick={() => setRevealedBlankIds(new Set(blankIds))} type="button">
+        すべて表示
+      </button>
+    )
+  } else if (assessed === null) {
+    footer = (
+      <div className="assess-row">
+        <button className="assess-btn unknown" onClick={() => assess(false)} type="button">
+          わからなかった
+        </button>
+        <button className="assess-btn known" onClick={() => assess(true)} type="button">
+          わかった
+        </button>
+      </div>
+    )
+  } else {
+    footer = (
+      <button id="nextBtn" className="btn-primary btn-block" onClick={onNext} type="button">
+        {nextLabel}
+      </button>
+    )
+  }
+
   return (
-    <div className="screen" id="quizScreen">
+    <AppShell
+      title={`${currentIndex + 1} / ${currentQuestions.length}`}
+      onBack={() => navigate({ name: kakomon ? 'study-kakomon' : 'study-anaume' })}
+      backLabel="出題をやめる"
+      navigate={navigate}
+      screenId="quizScreen"
+      footer={footer}
+    >
+      <ProgressBar value={currentIndex + 1} max={currentQuestions.length} />
       <div className="question-header">
-        <span>
-          問題 {currentIndex + 1} / {currentQuestions.length}
-        </span>
-        <span>{categoryLabel}</span>
+        <span id="questionCategory">{categoryLabel}</span>
       </div>
 
-      {isKakomonQuestion(current) ? (
+      {kakomon ? (
         <KakomonQuestionView
           question={current}
           selectedKey={selectedKey}
           onSelect={(key) => {
             if (selectedKey !== null) return
             setSelectedKey(key)
-            onKakomonAnswered(current.id, key === current.answer)
+            onKakomonAnswered(current.id, key, key === current.answer)
           }}
         />
       ) : (
-        <AnaumeQuestionView
-          question={current}
-          revealedBlankIds={revealedBlankIds}
-          onRevealBlank={(id) =>
-            setRevealedBlankIds((prev) => new Set(prev).add(id))
-          }
-        />
+        <>
+          <AnaumeQuestionView
+            question={current}
+            revealedBlankIds={revealedBlankIds}
+            onRevealBlank={(id) => setRevealedBlankIds((prev) => new Set(prev).add(id))}
+          />
+          {assessed !== null && (
+            <div className={`answer-feedback${assessed ? ' correct' : ' wrong'}`}>
+              {assessed ? 'わかった：次の復習まで間隔をあけます' : 'わからなかった：今日もう一度出題されます'}
+            </div>
+          )}
+        </>
       )}
-
-      {mode === 'anaume' && allRevealed && (
-        <div className="assess-row">
-          <button
-            className={`assess-btn known${assessed === true ? ' selected' : ''}`}
-            onClick={() => assess(true)}
-            disabled={assessed !== null}
-            type="button"
-          >
-            わかった
-          </button>
-          <button
-            className={`assess-btn unknown${assessed === false ? ' selected' : ''}`}
-            onClick={() => assess(false)}
-            disabled={assessed !== null}
-            type="button"
-          >
-            わからなかった
-          </button>
-        </div>
-      )}
-
-      <div className="controls">
-        {mode === 'anaume' && (
-          <button id="showAllBtn" className="btn-secondary" onClick={revealAll} type="button">
-            すべて表示
-          </button>
-        )}
-        <button
-          id="nextBtn"
-          className="btn-primary"
-          onClick={onNext}
-          disabled={mode === 'kakomon' && selectedKey === null}
-          type="button"
-        >
-          次の問題
-        </button>
-      </div>
-    </div>
+    </AppShell>
   )
 }

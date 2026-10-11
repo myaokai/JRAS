@@ -1,9 +1,20 @@
+// 画面の動作確認（Playwright）。事前に `npm run build && npx vite preview --port 8091` を起動しておく。
+// 失敗した確認があれば終了コード1で終わる。スクリーンショットは screenshots/ に保存する。
 const { chromium } = require('/Users/murakiy/.nodebrew/node/v22.21.1/lib/node_modules/playwright');
+const fs = require('fs');
 const http = require('http');
+const path = require('path');
 
 const PORT = 8091;
 const BASE_URL = 'http://localhost:' + PORT;
-const SS_DIR = '/Users/murakiy/sandbox/pwa/screenshots';
+const SS_DIR = path.join(__dirname, 'screenshots');
+const MOBILE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true };
+
+const results = [];
+function check(name, ok, detail = '') {
+  results.push({ name, ok });
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  (' + detail + ')' : ''}`);
+}
 
 function isPortInUse(port) {
   return new Promise((resolve) => {
@@ -13,387 +24,178 @@ function isPortInUse(port) {
   });
 }
 
-async function waitForQuizScreen(page, timeout = 5000) {
-  await page.waitForFunction(() => {
-    const qs = document.getElementById('quizScreen');
-    return qs && !qs.classList.contains('hidden');
-  }, { timeout });
+function yesterday() {
+  const d = new Date(Date.now() - 86400000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-async function waitForResultScreen(page, timeout = 5000) {
-  await page.waitForFunction(() => {
-    const rs = document.getElementById('resultScreen');
-    return rs && !rs.classList.contains('hidden');
-  }, { timeout });
+async function newPage(browser, errors) {
+  const context = await browser.newContext(MOBILE);
+  const page = await context.newPage();
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('dialog', (d) => d.accept());
+  return { context, page };
 }
 
-async function waitForStartScreen(page, timeout = 5000) {
-  await page.waitForFunction(() => {
-    const ss = document.getElementById('startScreen');
-    return ss && !ss.classList.contains('hidden');
-  }, { timeout });
+const shot = (page, name) => page.screenshot({ path: path.join(SS_DIR, name + '.png') });
+const text = (page, sel) => page.$eval(sel, (el) => el.textContent);
+
+// 穴埋めを1セット最後まで解く（すべて「わかった」）
+async function playAnaume(page) {
+  for (let i = 0; i < 20; i++) {
+    if (await page.$('#resultScreen')) return;
+    if (await page.$('#showAllBtn')) await page.click('#showAllBtn');
+    await page.click('.assess-btn.known');
+    await page.click('#nextBtn');
+  }
 }
 
 (async () => {
-  const alreadyRunning = await isPortInUse(PORT);
-  if (!alreadyRunning) {
+  if (!(await isPortInUse(PORT))) {
     console.error('ERROR: Server is not running on port ' + PORT);
     process.exit(1);
   }
-  console.log('[Server] Running on port ' + PORT);
-
+  fs.mkdirSync(SS_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
+  const errors = [];
 
   try {
-    // ===== CHECK 1: Progress hidden on start screen =====
-    console.log('\n=== CHECK 1: Progress area hidden on start screen ===');
-    const page1 = await browser.newPage();
-    await page1.setViewportSize({ width: 1280, height: 720 });
-    await page1.goto(BASE_URL);
-    await page1.waitForTimeout(2000); // wait for JS init + fetch
-    await page1.screenshot({ path: SS_DIR + '/check1-start-screen.png', fullPage: true });
-
-    const check1 = await page1.evaluate(() => {
-      const progressInfo = document.querySelector('.progress-info');
-      const progressSpan = document.getElementById('progress');
-      const resetBtn = document.getElementById('resetBtn');
-      const startScreen = document.getElementById('startScreen');
-
-      const getInfo = (el, name) => {
-        if (!el) return { name, found: false };
-        const style = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        return {
-          name,
-          found: true,
-          visibility: style.visibility,
-          display: style.display,
-          inlineVisibility: el.style.visibility,
-          hidden: el.hidden,
-          hasHiddenClass: el.classList.contains('hidden'),
-          isActuallyVisible: style.visibility === 'visible' && style.display !== 'none' && rect.width > 0 && rect.height > 0
-        };
-      };
-
-      return {
-        progressInfo: getInfo(progressInfo, 'progress-info'),
-        progressSpan: getInfo(progressSpan, 'progress span'),
-        resetBtn: getInfo(resetBtn, 'resetBtn'),
-        startScreen: getInfo(startScreen, 'startScreen'),
-        progressText: progressSpan ? progressSpan.textContent : 'not found'
-      };
-    });
-    console.log('Check 1 result:', JSON.stringify(check1, null, 2));
-
-    // The progress-info has inline style visibility:hidden on start screen
-    const progressHidden = check1.progressInfo.visibility === 'hidden' || check1.progressInfo.inlineVisibility === 'hidden';
-    console.log('>>> CHECK 1 PASS:', progressHidden ? 'YES - Progress is hidden on start screen' : 'NO - Progress is VISIBLE on start screen');
-
-    await page1.close();
-
-    // ===== CHECK 2: Progress visible during quiz =====
-    console.log('\n=== CHECK 2: Progress visible during quiz (過去問 mode) ===');
-    const page2 = await browser.newPage();
-    await page2.setViewportSize({ width: 1280, height: 720 });
-    await page2.goto(BASE_URL);
-    await page2.waitForTimeout(2000);
-
-    // Click 過去問（短答式）tab
-    await page2.click('[data-mode="kakomon"]');
-    await page2.waitForTimeout(500);
-    await page2.screenshot({ path: SS_DIR + '/check2-kakomon-tab-selected.png', fullPage: true });
-    console.log('Clicked 過去問 tab');
-
-    // Click スタート
-    await page2.click('#startBtn');
-    console.log('Clicked start button, waiting for quiz screen...');
-    await waitForQuizScreen(page2, 8000);
-    await page2.waitForTimeout(500);
-    await page2.screenshot({ path: SS_DIR + '/check2-quiz-started.png', fullPage: true });
-    console.log('Quiz screen is now visible');
-
-    const check2 = await page2.evaluate(() => {
-      const progressInfo = document.querySelector('.progress-info');
-      const progressSpan = document.getElementById('progress');
-      const resetBtn = document.getElementById('resetBtn');
-      const quizScreen = document.getElementById('quizScreen');
-
-      const getInfo = (el, name) => {
-        if (!el) return { name, found: false };
-        const style = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        return {
-          name,
-          found: true,
-          visibility: style.visibility,
-          display: style.display,
-          inlineVisibility: el.style.visibility,
-          isActuallyVisible: style.visibility === 'visible' && style.display !== 'none' && rect.width > 0 && rect.height > 0
-        };
-      };
-
-      return {
-        progressInfo: getInfo(progressInfo, 'progress-info'),
-        progressSpan: getInfo(progressSpan, 'progress span'),
-        resetBtn: getInfo(resetBtn, 'resetBtn'),
-        quizScreen: getInfo(quizScreen, 'quizScreen'),
-        progressText: progressSpan ? progressSpan.textContent : 'not found'
-      };
-    });
-    console.log('Check 2 result:', JSON.stringify(check2, null, 2));
-
-    const progressVisibleDuringQuiz = check2.progressInfo.visibility === 'visible';
-    console.log('>>> CHECK 2 PASS:', progressVisibleDuringQuiz ? 'YES - Progress is visible during quiz' : 'NO - Progress is HIDDEN during quiz');
-
-    await page2.close();
-
-    // ===== CHECK 3: Full 10-question quiz (過去問 mode) =====
-    console.log('\n=== CHECK 3: Play through full 10-question quiz ===');
-    const page3 = await browser.newPage();
-    await page3.setViewportSize({ width: 1280, height: 720 });
-    await page3.goto(BASE_URL);
-    await page3.waitForTimeout(2000);
-
-    // Switch to kakomon mode
-    await page3.click('[data-mode="kakomon"]');
-    await page3.waitForTimeout(500);
-
-    // Start quiz
-    await page3.click('#startBtn');
-    await waitForQuizScreen(page3, 8000);
-    await page3.waitForTimeout(500);
-    await page3.screenshot({ path: SS_DIR + '/check3-q1-before-answer.png', fullPage: true });
-
-    // Play through 10 questions
-    for (let i = 0; i < 10; i++) {
-      console.log('Question ' + (i + 1) + ' of 10...');
-
-      // Check if result screen appeared early
-      const resultEarly = await page3.evaluate(() => {
-        const rs = document.getElementById('resultScreen');
-        return rs && !rs.classList.contains('hidden');
-      });
-      if (resultEarly) {
-        console.log('  Result screen appeared early at question ' + (i + 1));
-        break;
-      }
-
-      // In kakomon mode, choices appear in #choicesContainer
-      // Click the first choice button
-      const choiceVisible = await page3.waitForSelector('#choicesContainer .choice-btn', { timeout: 5000 }).catch(() => null);
-      if (!choiceVisible) {
-        console.log('  No choice buttons found on question ' + (i + 1));
-        // Screenshot for debug
-        await page3.screenshot({ path: SS_DIR + '/check3-debug-q' + (i+1) + '.png', fullPage: true });
-        break;
-      }
-
-      const choices = await page3.$$('#choicesContainer .choice-btn');
-      console.log('  Found ' + choices.length + ' choices');
-
-      if (choices.length > 0) {
-        // Click choice at index 0 (first option)
-        await choices[0].click();
-        console.log('  Clicked first choice');
-      }
-
-      await page3.waitForTimeout(300);
-
-      // Click 次の問題
-      const nextEnabled = await page3.evaluate(() => {
-        const btn = document.getElementById('nextBtn');
-        return btn && !btn.disabled;
-      });
-      console.log('  nextBtn enabled:', nextEnabled);
-
-      if (nextEnabled) {
-        await page3.click('#nextBtn');
-        await page3.waitForTimeout(500);
-      } else {
-        console.log('  nextBtn is disabled, something went wrong');
-        await page3.screenshot({ path: SS_DIR + '/check3-disabled-q' + (i+1) + '.png', fullPage: true });
-      }
+    // ── 1. 旧形式（localStorage）からの移行 ──
+    {
+      const { context, page } = await newPage(browser, errors);
+      await page.addInitScript((ys) => {
+        if (sessionStorage.getItem('seeded')) return;
+        sessionStorage.setItem('seeded', '1');
+        const ts = new Date(ys + 'T12:00:00').getTime();
+        localStorage.setItem('problemRecord', JSON.stringify({
+          '1': { box: 0, dueDate: ys, lastResult: false, ts },
+          R07_kanteishi_001: { box: 0, dueDate: ys, lastResult: false, ts },
+        }));
+        localStorage.setItem('habitRecord', JSON.stringify({ lastStudyDate: ys, currentStreak: 6, longestStreak: 12, todayDate: ys, todayCount: 4 }));
+      }, yesterday());
+      await page.goto(BASE_URL);
+      await page.waitForSelector('#homeScreen');
+      await shot(page, '01-home-migrated');
+      const streak = await text(page, '#streak');
+      check('移行: 連続日数が引き継がれる', streak.includes('6日連続') && streak.includes('最長 12日'), streak);
+      check('移行: 復習期限の件数が出る', !!(await page.$('#reviewAnaumeBtn')) && !!(await page.$('#reviewKakomonBtn')));
+      await page.reload();
+      await page.waitForSelector('#homeScreen');
+      check('移行: 再読み込みしても二重に移行しない', (await text(page, '#streak')).includes('6日連続'));
+      await context.close();
     }
 
-    await page3.waitForTimeout(1000);
-
-    // Check if result screen is visible
-    const resultVisible3 = await page3.evaluate(() => {
-      const rs = document.getElementById('resultScreen');
-      return rs && !rs.classList.contains('hidden');
-    });
-    console.log('Result screen visible:', resultVisible3);
-
-    await page3.screenshot({ path: SS_DIR + '/check3-result.png', fullPage: true });
-
-    const check3 = await page3.evaluate(() => {
-      const resultScreen = document.getElementById('resultScreen');
-      const h2 = resultScreen ? resultScreen.querySelector('h2') : null;
-      const resultText = document.getElementById('resultText');
-      return {
-        resultScreenVisible: resultScreen && !resultScreen.classList.contains('hidden'),
-        h2Text: h2 ? h2.textContent : 'not found',
-        resultTextHTML: resultText ? resultText.innerHTML : 'not found',
-        resultTextContent: resultText ? resultText.textContent : 'not found'
-      };
-    });
-    console.log('Check 3 result:', JSON.stringify(check3, null, 2));
-
-    const hasKekkaHappyo = check3.h2Text && check3.h2Text.includes('結果発表');
-    const hasScore = check3.resultTextContent && (check3.resultTextContent.includes('/10') || check3.resultTextContent.includes('/'));
-    const hasPercentage = check3.resultTextContent && check3.resultTextContent.includes('%');
-    console.log('>>> CHECK 3 PASS:', (hasKekkaHappyo && hasScore && hasPercentage) ? 'YES - Result screen shows 結果発表 with score and percentage' : 'PARTIAL/NO');
-    console.log('  - 結果発表 heading:', hasKekkaHappyo);
-    console.log('  - Score shown:', hasScore);
-    console.log('  - Percentage shown:', hasPercentage);
-
-    await page3.close();
-
-    // ===== CHECK 4: History and filter button after quiz =====
-    console.log('\n=== CHECK 4: History and filter button after quiz ===');
-    const page4 = await browser.newPage();
-    await page4.setViewportSize({ width: 1280, height: 720 });
-    await page4.goto(BASE_URL);
-    await page4.waitForTimeout(2000);
-
-    // Switch to kakomon and start quiz
-    await page4.click('[data-mode="kakomon"]');
-    await page4.waitForTimeout(500);
-    await page4.click('#startBtn');
-    await waitForQuizScreen(page4, 8000);
-    await page4.waitForTimeout(500);
-
-    // Play through 10 questions - deliberately get some wrong by clicking first choice
-    for (let i = 0; i < 10; i++) {
-      const resultEarly = await page4.evaluate(() => {
-        const rs = document.getElementById('resultScreen');
-        return rs && !rs.classList.contains('hidden');
-      });
-      if (resultEarly) break;
-
-      const choiceEl = await page4.waitForSelector('#choicesContainer .choice-btn', { timeout: 5000 }).catch(() => null);
-      if (!choiceEl) break;
-
-      const choices = await page4.$$('#choicesContainer .choice-btn');
-      if (choices.length > 0) {
-        await choices[0].click(); // Always pick first choice (likely some will be wrong)
-      }
-      await page4.waitForTimeout(300);
-
-      const nextEnabled = await page4.evaluate(() => {
-        const btn = document.getElementById('nextBtn');
-        return btn && !btn.disabled;
-      });
-      if (nextEnabled) {
-        await page4.click('#nextBtn');
-        await page4.waitForTimeout(400);
-      }
+    // ── 2. 下部タブと戻る操作 ──
+    const { context, page } = await newPage(browser, errors);
+    await page.goto(BASE_URL);
+    await page.waitForSelector('#homeScreen');
+    const tabs = await page.$$eval('.tab-item', (els) => els.map((e) => e.textContent));
+    check('下部タブが5つある', tabs.length === 5, tabs.join(' / '));
+    for (const [tab, screen] of [['study', '#studyScreen'], ['textbook', '#textbookScreen'], ['records', '#recordsScreen'], ['settings', '#settingsScreen']]) {
+      await page.click(`[data-tab=${tab}]`);
+      check(`タブ「${tab}」で画面が切り替わる`, !!(await page.waitForSelector(screen).catch(() => null)));
     }
+    await page.goBack();
+    check('戻る操作で前のタブに戻る', !!(await page.waitForSelector('#recordsScreen').catch(() => null)), page.url());
 
-    await page4.waitForTimeout(1000);
-    await page4.screenshot({ path: SS_DIR + '/check4-result-before-retry.png', fullPage: true });
+    // ── 3. 穴埋め: 学習 → 範囲選択 → 出題 → 結果 ──
+    await page.click('[data-tab=study]');
+    await page.click('#modeAnaume');
+    await page.waitForSelector('#startScreen');
+    await shot(page, '03-anaume-select');
+    await page.click('#startBtn');
+    await page.waitForSelector('#quizScreen');
+    check('出題中は下部タブを隠す', !(await page.$('.tab-bar')) && !!(await page.$('.bottom-bar')));
+    check('全部表示するまで自己評価は出ない', !(await page.$('.assess-btn')));
+    await page.click('.blank');
+    check('穴をタップすると答えが出る', (await page.$$('.blank.revealed')).length === 1);
+    await page.click('#showAllBtn');
+    await shot(page, '04-anaume-quiz');
+    check('すべて表示で自己評価が出る', (await page.$$('.assess-btn')).length === 2);
+    await playAnaume(page);
+    await page.waitForSelector('#resultScreen');
+    await shot(page, '05-result');
+    check('結果に10問中10問が出る', (await text(page, '#resultText')).includes('10'));
+    await page.goBack();
+    check('結果から戻ると範囲選択に戻る（解き終えた問題に戻らない）', !!(await page.waitForSelector('#startScreen').catch(() => null)), page.url());
 
-    // Capture score before going back
-    const resultBeforeRetry = await page4.evaluate(() => {
-      const resultText = document.getElementById('resultText');
-      return {
-        content: resultText ? resultText.textContent : 'not found',
-        html: resultText ? resultText.innerHTML : 'not found'
-      };
-    });
-    console.log('Result before retry:', JSON.stringify(resultBeforeRetry));
+    await page.click('.header-back');
+    await page.waitForSelector('#studyScreen');
+    await page.click('[data-tab=home]');
+    await page.waitForSelector('#homeScreen');
+    const today = await text(page, '#todayCount');
+    check('解答がホームの「今日の学習」に反映される', today.trim().startsWith('10'), today);
 
-    // Click もう一度 to go back
-    await page4.click('#retryBtn');
-    await waitForStartScreen(page4, 5000);
-    await page4.waitForTimeout(500);
-    await page4.screenshot({ path: SS_DIR + '/check4-back-to-start.png', fullPage: true });
-    console.log('Clicked もう一度, back to start screen');
+    // ── 4. 過去問 ──
+    await page.goto(BASE_URL + '/#/study/kakomon');
+    await page.waitForSelector('#startScreen');
+    await page.click('#startBtn');
+    await page.waitForSelector('#quizScreen');
+    check('過去問: 選ぶまで「次へ」は押せない', await page.$eval('#nextBtn', (b) => b.disabled));
+    await page.click('.choice-btn');
+    check('過去問: 選ぶと正誤が出る', !!(await page.$('.answer-feedback')));
+    check('過去問: 選んだ後は「次へ」が押せる', !(await page.$eval('#nextBtn', (b) => b.disabled)));
+    await shot(page, '07-kakomon-answered');
+    await page.click('.header-back');
+    await page.waitForSelector('#startScreen');
+    check('過去問: 履歴に今回のセットが出る', !!(await page.$('#kakomonHistorySection')));
 
-    // Switch to 過去問 tab
-    await page4.click('[data-mode="kakomon"]');
-    await page4.waitForTimeout(800); // give time for renderKakomonHistory
-    await page4.screenshot({ path: SS_DIR + '/check4-kakomon-after-quiz.png', fullPage: true });
-    console.log('Switched to 過去問 tab');
+    // ── 5. 出題状態がないまま #/quiz を開く ──
+    await page.goto(BASE_URL + '/#/quiz');
+    await page.reload();
+    await page.waitForSelector('#studyScreen');
+    check('#/quiz を直接開くと学習トップに戻す', page.url().endsWith('#/study'), page.url());
 
-    // Check for 前回の間違いを練習 button and 学習履歴
-    const check4 = await page4.evaluate(() => {
-      const filterBar = document.getElementById('kakomonFilterBar');
-      const filterBtn = document.getElementById('filterWrongBtn');
-      const filterCount = document.getElementById('filterWrongCount');
-      const histSection = document.getElementById('kakomonHistorySection');
-      const histList = document.getElementById('kakomonHistoryList');
+    // ── 6. 教科書 ──
+    await page.click('[data-tab=textbook]');
+    await page.waitForSelector('#textbookScreen');
+    await page.click('.list-item');
+    await page.click('.list-item');
+    await page.waitForSelector('.textbook-body');
+    const sectionUrl = page.url();
+    check('教科書: 節の本文が URL で表される', /#\/textbook\/\d+\/\d+$/.test(sectionUrl), sectionUrl);
+    await page.reload();
+    check('教科書: 再読み込みしても同じ節を開く', !!(await page.waitForSelector('.textbook-body').catch(() => null)));
+    await shot(page, '09-textbook-section');
 
-      const getInfo = (el, name) => {
-        if (!el) return { name, found: false };
-        const style = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        return {
-          name,
-          found: true,
-          display: style.display,
-          visibility: style.visibility,
-          hasHiddenClass: el.classList.contains('hidden'),
-          isVisible: !el.classList.contains('hidden') && style.display !== 'none',
-          text: el.textContent.trim().substring(0, 100)
-        };
-      };
+    // ── 7. 書き出し → 別のブラウザで読み込み ──
+    await page.click('[data-tab=settings]');
+    await page.waitForSelector('#settingsScreen');
+    const [download] = await Promise.all([page.waitForEvent('download'), page.click('#exportBtn')]);
+    const file = path.join(SS_DIR, 'backup-test.json');
+    await download.saveAs(file);
+    const backup = JSON.parse(fs.readFileSync(file, 'utf8'));
+    check('書き出し: version 2 で解答ログが入っている', backup.version === 2 && backup.answers.length >= 11, `${backup.answers.length}件`);
+    check('書き出し: 最終バックアップが更新される', !(await text(page, '#lastBackup')).includes('未実施'));
+    await shot(page, '15-settings');
+    await context.close();
 
-      return {
-        filterBar: getInfo(filterBar, 'kakomonFilterBar'),
-        filterBtn: getInfo(filterBtn, 'filterWrongBtn'),
-        filterCount: getInfo(filterCount, 'filterWrongCount'),
-        histSection: getInfo(histSection, 'kakomonHistorySection'),
-        histList: getInfo(histList, 'kakomonHistoryList'),
-        histListHTML: histList ? histList.innerHTML.substring(0, 300) : 'not found'
-      };
-    });
-    console.log('Check 4 elements:', JSON.stringify(check4, null, 2));
+    const other = await newPage(browser, errors);
+    await other.page.goto(BASE_URL + '/#/settings');
+    await other.page.waitForSelector('#settingsScreen');
+    await other.page.setInputFiles('#importFile', file);
+    await other.page.waitForSelector('#settingsMessage');
+    check('読み込み: 件数が表示される', (await text(other.page, '#settingsMessage')).includes(`${backup.answers.length}件`));
+    await other.page.click('[data-tab=home]');
+    await other.page.waitForSelector('#homeScreen');
+    check('読み込み: 別のブラウザで今日の解答数が戻る', (await text(other.page, '#todayCount')).trim().startsWith('11'));
+    await other.page.click('[data-tab=settings]');
+    await other.page.waitForSelector('#settingsScreen');
+    await other.page.setInputFiles('#importFile', { name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"app":"other"}') });
+    await other.page.waitForFunction(() => document.querySelector('#settingsMessage')?.textContent.includes('読み込めませんでした'));
+    check('読み込み: 不正なファイルは拒否する', true);
+    await other.context.close();
+    fs.unlinkSync(file);
 
-    const filterBarVisible = check4.filterBar.isVisible;
-    const histSectionVisible = check4.histSection.isVisible;
-    console.log('>>> CHECK 4a - 前回の間違いを練習 button visible:', filterBarVisible ? 'YES' : 'NO');
-    console.log('>>> CHECK 4b - 学習履歴 section visible:', histSectionVisible ? 'YES' : 'NO');
-
-    // If filter button is visible, click it and check if it turns gold/active
-    if (filterBarVisible) {
-      console.log('Clicking 前回の間違いを練習 button...');
-      await page4.click('#filterWrongBtn');
-      await page4.waitForTimeout(500);
-      await page4.screenshot({ path: SS_DIR + '/check4-filter-active.png', fullPage: true });
-
-      const btnAfterClick = await page4.evaluate(() => {
-        const btn = document.getElementById('filterWrongBtn');
-        if (!btn) return null;
-        const style = window.getComputedStyle(btn);
-        return {
-          classList: Array.from(btn.classList),
-          isActive: btn.classList.contains('active'),
-          backgroundColor: style.backgroundColor,
-          color: style.color,
-          text: btn.textContent.trim().substring(0, 60)
-        };
-      });
-      console.log('Filter button after click:', JSON.stringify(btnAfterClick));
-
-      const isGoldActive = btnAfterClick && btnAfterClick.isActive;
-      console.log('>>> CHECK 4c - Button turns active/gold after click:', isGoldActive ? 'YES' : 'NO');
-      console.log('  Background color:', btnAfterClick ? btnAfterClick.backgroundColor : 'unknown');
-    } else {
-      console.log('>>> CHECK 4c - Cannot test button click (button not visible)');
-      // Investigate why - check localStorage
-      const localStorageData = await page4.evaluate(() => {
-        const h = localStorage.getItem('kakomonHistory');
-        return h ? JSON.parse(h) : null;
-      });
-      console.log('localStorage kakomonHistory:', JSON.stringify(localStorageData, null, 2));
-    }
-
-    await page4.close();
-
-    console.log('\n[Done] All checks completed');
-
+    check('コンソールエラーがない', errors.length === 0, errors.join(' | '));
+  } catch (e) {
+    check('例外なく最後まで進む', false, e.message);
   } finally {
     await browser.close();
   }
-})().catch(e => { console.error('Error:', e.message, e.stack); process.exit(1); });
+
+  const failed = results.filter((r) => !r.ok);
+  console.log(`\n${results.length - failed.length}/${results.length} passed`);
+  process.exit(failed.length ? 1 : 0);
+})();
