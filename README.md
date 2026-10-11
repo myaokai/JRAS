@@ -40,9 +40,13 @@ JRAS/
 │   ├── shuffle.ts
 │   ├── questionText.ts    # 穴埋めテキストのパース
 │   ├── style.css
+│   ├── route.ts           # URLハッシュによる画面遷移
+│   ├── backup.ts          # 学習データの書き出し・読み込み
+│   ├── store/             # 解答ログ（IndexedDB）・ログからの集計・旧データの移行
 │   ├── data/loadData.ts   # questions.json / past_exams のfetch
-│   ├── hooks/              # localStorage永続化フック
-│   └── components/         # 画面コンポーネント
+│   ├── hooks/             # useStudyLog（学習記録）
+│   └── components/        # 画面コンポーネント（layout/ に共通の枠）
+├── worker/                # Cloudflare Worker（配信・/api・Access の JWT 検証）
 ├── public/
 │   ├── questions.json      # 穴埋め問題データ（章・節・問題）
 │   ├── past_exams/         # 過去問データ（短答式）
@@ -121,12 +125,21 @@ node scripts/validate_questions.js
 モバイル・デスクトップどちらでもホーム画面に追加（インストール）できます。
 オフラインでも動作します（初回アクセス後）。
 
+## テスト・Worker のローカル実行
+
+```bash
+npm test             # 単体テスト（Vitest）
+cp .dev.vars.example .dev.vars
+npm run dev:worker   # ビルドして wrangler dev（http://localhost:8787、/api/me が使える）
+```
+
 ## デプロイ
 
-Cloudflare Pages 等の静的ホスティングにデプロイします。
+Cloudflare Workers（`wrangler.jsonc` の Worker「jras」）で配信します。`dist/` を静的アセットとして返し、
+`/api/*`（同期API）と `/audio/*`（音声）は `worker/index.ts` で処理します。設計は [docs/infrastructure.md](docs/infrastructure.md)。
 
 - ビルドコマンド: `npm run build`
-- 出力ディレクトリ: `dist`
+- デプロイ: `npx wrangler deploy`（Cloudflare の Git 連携を設定している場合は main へのマージで自動）
 
 デプロイ後に発行されるHTTPS URLをiPhone Safariで開き、「ホーム画面に追加」してください。
 
