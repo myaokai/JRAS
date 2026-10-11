@@ -8,6 +8,8 @@ interface Props {
   kijunData: KijunData
   chapterId?: string
   sectionId?: string
+  // 出題中の基準リンクから開いたときは、戻るで出題画面に戻す
+  fromQuiz?: boolean
 }
 
 interface Leaf {
@@ -47,7 +49,8 @@ function TextbookBody({ text }: { text: string }) {
   )
 }
 
-export function TextbookScreen({ navigate, kijunData, chapterId, sectionId }: Props) {
+export function TextbookScreen({ navigate, kijunData, chapterId, sectionId, fromQuiz = false }: Props) {
+  const backToQuiz = fromQuiz ? { onBack: () => history.back(), backLabel: '問題に戻る' } : null
   const leaves = useMemo(() => buildLeaves(kijunData), [kijunData])
   const chapter = chapterId ? kijunData[chapterId] : undefined
   const section = chapter && sectionId ? chapter.sections[sectionId] : undefined
@@ -84,10 +87,12 @@ export function TextbookScreen({ navigate, kijunData, chapterId, sectionId }: Pr
       <AppShell
         title={chapter.title}
         onBack={() => navigate({ name: 'textbook', chapterId })}
+        {...backToQuiz}
         tab="textbook"
         navigate={navigate}
         screenId="textbookScreen"
       >
+        {fromQuiz && <BackToQuiz />}
         <h2 className="page-title">{section.title}</h2>
         <TextbookBody text={section.text} />
         {renderLeafNav(chapterId, sectionId)}
@@ -102,10 +107,12 @@ export function TextbookScreen({ navigate, kijunData, chapterId, sectionId }: Pr
       <AppShell
         title={chapter.title}
         onBack={() => navigate({ name: 'textbook' })}
+        {...backToQuiz}
         tab="textbook"
         navigate={navigate}
         screenId="textbookScreen"
       >
+        {fromQuiz && <BackToQuiz />}
         {chapter.intro && <TextbookBody text={chapter.intro} />}
         {sectionIds.length > 0 && (
           <div className="list">
@@ -141,5 +148,13 @@ export function TextbookScreen({ navigate, kijunData, chapterId, sectionId }: Pr
         ))}
       </div>
     </AppShell>
+  )
+}
+
+function BackToQuiz() {
+  return (
+    <button className="kijun-link" id="backToQuizBtn" onClick={() => history.back()} type="button">
+      ‹ 問題に戻る
+    </button>
   )
 }

@@ -1,18 +1,32 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { AnaumeQuestion, Chapter, KakomonQuestion } from '../types'
+import { useMemo } from 'react'
+import type { AnaumeQuestion, Chapter, KakomonQuestion, KijunData, KijunRef } from '../types'
 import { isKakomonQuestion } from '../types'
 import type { Navigate } from '../route'
 import { getBlankIds } from '../questionText'
+import { kijunRefLabel, refOf } from '../kijunRef'
 import { AnaumeQuestionView } from './AnaumeQuestionView'
 import { KakomonQuestionView } from './KakomonQuestionView'
 import { AppShell } from './layout/AppShell'
 import { ProgressBar } from './ui'
 
+// 問題ごとの回答状態。App が持つので、教科書を開いて戻っても残る
+export interface QuizResponse {
+  revealed: string[]
+  // 穴埋めの自己評価（true=わかった）。過去問は選んだ時点の正誤
+  correct: boolean | null
+  choice: string | null
+}
+
+export const EMPTY_RESPONSE: QuizResponse = { revealed: [], correct: null, choice: null }
+
 interface Props {
   navigate: Navigate
   chapters: Record<string, Chapter>
+  kijunData: KijunData
   currentQuestions: (AnaumeQuestion | KakomonQuestion)[]
   currentIndex: number
+  response: QuizResponse
+  onResponseChange: (response: QuizResponse) => void
   onNext: () => void
   onAnaumeAssessed: (questionId: number, correct: boolean) => void
   onKakomonAnswered: (questionId: string, choice: string, correct: boolean) => void
@@ -21,28 +35,23 @@ interface Props {
 export function QuizScreen({
   navigate,
   chapters,
+  kijunData,
   currentQuestions,
   currentIndex,
+  response,
+  onResponseChange,
   onNext,
   onAnaumeAssessed,
   onKakomonAnswered,
 }: Props) {
   const current = currentQuestions[currentIndex]
-  const [revealedBlankIds, setRevealedBlankIds] = useState<Set<string>>(new Set())
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [assessed, setAssessed] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    setRevealedBlankIds(new Set())
-    setSelectedKey(null)
-    setAssessed(null)
-  }, [currentIndex])
+  const revealed = useMemo(() => new Set(response.revealed), [response.revealed])
 
   const blankIds = useMemo(
     () => (current && !isKakomonQuestion(current) ? getBlankIds(current.text, current.id) : []),
     [current],
   )
-  const allRevealed = blankIds.length > 0 && blankIds.every((id) => revealedBlankIds.has(id))
+  const allRevealed = blankIds.length > 0 && blankIds.every((id) => revealed.has(id))
 
   if (!current) return null
   const kakomon = isKakomonQuestion(current)
@@ -56,10 +65,13 @@ export function QuizScreen({
       })()
 
   const assess = (correct: boolean) => {
-    if (assessed !== null || kakomon) return
-    setAssessed(correct)
+    if (response.correct !== null || kakomon) return
+    onResponseChange({ ...response, correct })
     onAnaumeAssessed(current.id, correct)
   }
+
+  const openKijun = (ref: KijunRef) =>
+    navigate({ name: 'textbook', chapterId: ref.chapter, sectionId: ref.section, fromQuiz: true })
 
   const isLast = currentIndex + 1 >= currentQuestions.length
   const nextLabel = isLast ? '結果を見る' : '次の問題'
@@ -67,17 +79,17 @@ export function QuizScreen({
   let footer
   if (kakomon) {
     footer = (
-      <button id="nextBtn" className="btn-primary btn-block" onClick={onNext} disabled={selectedKey === null} type="button">
+      <button id="nextBtn" className="btn-primary btn-block" onClick={onNext} disabled={response.choice === null} type="button">
         {nextLabel}
       </button>
     )
   } else if (!allRevealed) {
     footer = (
-      <button id="showAllBtn" className="btn-secondary btn-block" onClick={() => setRevealedBlankIds(new Set(blankIds))} type="button">
+      <button id="showAllBtn" className="btn-secondary btn-block" onClick={() => onResponseChange({ ...response, revealed: blankIds })} type="button">
         すべて表示
       </button>
     )
-  } else if (assessed === null) {
+  } else if (response.correct === null) {
     footer = (
       <div className="assess-row">
         <button className="assess-btn unknown" onClick={() => assess(false)} type="button">
@@ -113,27 +125,40 @@ export function QuizScreen({
       {kakomon ? (
         <KakomonQuestionView
           question={current}
-          selectedKey={selectedKey}
+          selectedKey={response.choice}
           onSelect={(key) => {
-            if (selectedKey !== null) return
-            setSelectedKey(key)
-            onKakomonAnswered(current.id, key, key === current.answer)
+            if (response.choice !== null) return
+            const correct = key === current.answer
+            onResponseChange({ ...response, choice: key, correct })
+            onKakomonAnswered(current.id, key, correct)
           }}
+          renderKijunLink={(ref) => <KijunLink kijunData={kijunData} kijunRef={ref} onOpen={openKijun} />}
         />
       ) : (
         <>
           <AnaumeQuestionView
             question={current}
-            revealedBlankIds={revealedBlankIds}
-            onRevealBlank={(id) => setRevealedBlankIds((prev) => new Set(prev).add(id))}
+            revealedBlankIds={revealed}
+            onRevealBlank={(id) => onResponseChange({ ...response, revealed: [...new Set([...response.revealed, id])] })}
           />
-          {assessed !== null && (
-            <div className={`answer-feedback${assessed ? ' correct' : ' wrong'}`}>
-              {assessed ? 'わかった：次の復習まで間隔をあけます' : 'わからなかった：今日もう一度出題されます'}
+          {response.correct !== null && (
+            <div className={`answer-feedback${response.correct ? ' correct' : ' wrong'}`}>
+              {response.correct ? 'わかった：次の復習まで間隔をあけます' : 'わからなかった：今日もう一度出題されます'}
             </div>
           )}
+          {allRevealed && <KijunLink kijunData={kijunData} kijunRef={refOf(current.chapter, current.section)} onOpen={openKijun} />}
         </>
       )}
     </AppShell>
+  )
+}
+
+export function KijunLink({ kijunData, kijunRef, onOpen }: { kijunData: KijunData; kijunRef: KijunRef; onOpen: (ref: KijunRef) => void }) {
+  const label = kijunRefLabel(kijunData, kijunRef)
+  if (!label) return null
+  return (
+    <button className="kijun-link" onClick={() => onOpen(kijunRef)} type="button">
+      📖 基準 {label}を読む
+    </button>
   )
 }

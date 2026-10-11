@@ -22,9 +22,17 @@ export interface ExamMeta {
   count: number
 }
 
+// 基準本文の該当箇所（kijun.json の章・節のキー）。節のない章は section を省く
+export interface KijunRef {
+  chapter: string
+  section?: string
+}
+
 export interface KakomonChoice {
   key: string
   text: string
+  explanation?: string
+  kijunRef?: KijunRef
 }
 
 export interface KakomonQuestion {
@@ -33,6 +41,8 @@ export interface KakomonQuestion {
   instruction: string
   choices: KakomonChoice[]
   answer: string
+  explanation?: string
+  kijunRef?: KijunRef
   _examLabel?: string
 }
 
