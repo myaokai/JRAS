@@ -8,7 +8,7 @@ const assets = {
 } as unknown as Fetcher
 
 const call = (path: string, env: Partial<Env> = {}, headers: Record<string, string> = {}) =>
-  worker.fetch(new Request(`https://jras.example${path}`, { headers }), { ASSETS: assets, ...env })
+  worker.fetch(new Request(`https://jras.example${path}`, { headers }), { ASSETS: assets, DB: {} as D1Database, ...env })
 
 describe('worker', () => {
   it('/api/me は DEV_USER があれば利用者を返す', async () => {
