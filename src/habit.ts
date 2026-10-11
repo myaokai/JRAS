@@ -11,8 +11,7 @@ export const EMPTY_HABIT_RECORD: HabitRecord = {
   todayCount: 0,
 }
 
-export function recordStudy(prev: HabitRecord): HabitRecord {
-  const today = todayStr()
+export function recordStudy(prev: HabitRecord, today: string = todayStr()): HabitRecord {
 
   const todayDate = prev.todayDate === today ? prev.todayDate : today
   const todayCount = prev.todayDate === today ? prev.todayCount + 1 : 1
