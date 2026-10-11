@@ -8,6 +8,15 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/", "/index.html", "/sw.js", "/registerSW.js", "/manifest.webmanifest", "/api/*", "/audio/*"]
   },
+  // 学習記録の同期（docs/infrastructure.md）。テーブルは段階2-8で migrations/ に定義する
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "jras-db",
+      "database_id": "97f6a726-4a65-49b4-97fb-4db60df49466",
+      "migrations_dir": "migrations"
+    }
+  ],
   // Cloudflare Access（段階0-7）。設定したらチームドメインと AUD タグを入れる（秘密情報ではない）
   "vars": {
     "ACCESS_TEAM_DOMAIN": "",

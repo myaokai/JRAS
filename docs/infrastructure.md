@@ -34,7 +34,7 @@ Cloudflare
 |---|---|
 | 現状 | `wrangler.jsonc` の Worker「jras」が `dist/` を配信している。`index.html` / `sw.js` などは Worker を通し、常に再検証させている（`worker/index.ts`） |
 | 変更点 | `/api/*` と `/audio/*` の振り分けを Worker に足す。`run_worker_first` に `/api/*` と `/audio/*` を加える |
-| デプロイ | 今の方法（Workers Builds の Git 連携か `wrangler deploy` か）を確認し、D1 のマイグレーション適用をデプロイ手順に入れる |
+| デプロイ | 手動の `npm run build && npx wrangler deploy`（2026年10月時点。Git 連携の自動デプロイは未設定）。テーブル変更があるときは先に `npx wrangler d1 migrations apply jras-db --remote` を実行する |
 
 ### 2. 学習記録：D1「jras-db」
 
@@ -68,6 +68,7 @@ CREATE TABLE settings (
 ```
 
 - 過去問の履歴や連続学習日数は、`answers` を集計すれば出せるので、テーブルを分けない。
+- 作成済み（2026-10-12、リージョン APAC、`database_id` は `wrangler.jsonc`）。Worker からは `env.DB` で使う。
 - マイグレーションは `migrations/` に置き、`wrangler d1 migrations apply` で適用する。
 
 **容量の見積もり**：1日100問を解いて1年で約3.6万行、1行200バイトとして約7MB。無料枠（5GB）に十分収まる。
