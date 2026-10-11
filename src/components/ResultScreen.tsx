@@ -1,16 +1,39 @@
 import type { Navigate } from '../route'
 import { AppShell } from './layout/AppShell'
+import { Card, ProgressBar, SectionTitle } from './ui'
+
+export interface ResultItem {
+  id: string
+  label: string
+  correct: boolean
+  // 次回の復習日（YYYY-MM-DD）。ライトナー方式の記録から求める
+  dueDate: string | null
+}
 
 interface Props {
   navigate: Navigate
   mode: 'anaume' | 'kakomon'
-  total: number
-  correctCount: number
+  items: ResultItem[]
+  today: string
+  todayCount: number
+  dailyGoal: number
+  onRetryWrong: () => void
 }
 
-export function ResultScreen({ navigate, mode, total, correctCount }: Props) {
+function formatDue(dueDate: string | null, today: string): string {
+  if (!dueDate) return '—'
+  if (dueDate <= today) return '今日'
+  const [, m, d] = dueDate.split('-').map(Number)
+  return `${m}/${d}`
+}
+
+export function ResultScreen({ navigate, mode, items, today, todayCount, dailyGoal, onRetryWrong }: Props) {
+  const total = items.length
+  const correctCount = items.filter((i) => i.correct).length
+  const wrongCount = total - correctCount
   const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0
   const selectRoute = mode === 'kakomon' ? 'study-kakomon' : 'study-anaume'
+  const goalMet = todayCount >= dailyGoal
 
   return (
     <AppShell
@@ -19,12 +42,19 @@ export function ResultScreen({ navigate, mode, total, correctCount }: Props) {
       screenId="resultScreen"
       footer={
         <>
-          <button id="retryBtn" className="btn-primary btn-block" onClick={() => navigate({ name: selectRoute })} type="button">
-            もう一度
-          </button>
-          <button id="homeBtn" className="btn-secondary btn-block" onClick={() => navigate({ name: 'home' })} type="button">
-            ホームへ
-          </button>
+          {wrongCount > 0 && (
+            <button id="retryWrongBtn" className="btn-primary btn-block" onClick={onRetryWrong} type="button">
+              間違えた{wrongCount}問だけもう一度
+            </button>
+          )}
+          <div className="bottom-bar-row">
+            <button id="retryBtn" className="btn-secondary" onClick={() => navigate({ name: selectRoute })} type="button">
+              範囲を選び直す
+            </button>
+            <button id="homeBtn" className="btn-secondary" onClick={() => navigate({ name: 'home' })} type="button">
+              ホームへ
+            </button>
+          </div>
         </>
       }
     >
@@ -35,6 +65,30 @@ export function ResultScreen({ navigate, mode, total, correctCount }: Props) {
         </span>
         <span className="result-pct">{mode === 'kakomon' ? `正答率 ${pct}%` : `「わかった」${pct}%`}</span>
       </div>
+
+      <Card className="goal-card">
+        <div className="row-title" id="goalStatus">
+          {goalMet ? `今日の目標 ${dailyGoal}問を達成しました` : `今日の目標まであと ${dailyGoal - todayCount}問`}
+        </div>
+        <ProgressBar value={todayCount} max={dailyGoal} />
+      </Card>
+
+      <SectionTitle>問題ごとの結果と次回の復習</SectionTitle>
+      <Card className="list-card">
+        <ul className="result-list" id="resultList">
+          {items.map((item, i) => (
+            <li className="result-item" key={`${item.id}-${i}`} data-id={item.id}>
+              <span className={item.correct ? 'text-ok' : 'text-ng'} aria-label={item.correct ? '正解' : '不正解'}>
+                {item.correct ? '○' : '×'}
+              </span>
+              <span className="result-item-label">{item.label}</span>
+              <span className="result-item-due" data-due={item.dueDate ?? ''}>
+                次回 {formatDue(item.dueDate, today)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
     </AppShell>
   )
 }

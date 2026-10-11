@@ -89,8 +89,25 @@ function validateCoverage(questionsData) {
   console.log(`kijun.json: ${Object.keys(questionsData.chapters).length}章の本文と節ごとの問題数を検証しました`)
 }
 
+// 任意項目 explanation（文字列）と kijunRef（kijun.json にある章・節）を確かめる（FR-11・FR-12）
+function checkOptionalFields(item, label, kijun) {
+  if (item.explanation !== undefined && (typeof item.explanation !== 'string' || item.explanation.trim() === '')) {
+    errors.push(`${label}: explanation は空でない文字列にしてください`)
+  }
+  const ref = item.kijunRef
+  if (ref === undefined) return
+  const chapter = typeof ref?.chapter === 'string' ? kijun[ref.chapter] : undefined
+  if (!chapter) {
+    errors.push(`${label}: kijunRef.chapter=${ref?.chapter} が kijun.json にありません`)
+  } else if (ref.section !== undefined && !chapter.sections[ref.section]) {
+    errors.push(`${label}: kijunRef.section=${ref.section} が kijun.json の章 ${ref.chapter} にありません`)
+  }
+}
+
 function validatePastExams() {
   const index = readJson('past_exams/index.json')
+  const kijun = readJson('kijun.json')
+  let explained = 0
   const globalIds = new Set()
 
   for (const exam of index) {
@@ -121,10 +138,14 @@ function validatePastExams() {
       if (!answerKeys.includes(q.answer)) {
         errors.push(`${label}: answer=${q.answer} が choices に存在しません`)
       }
+
+      checkOptionalFields(q, label, kijun)
+      q.choices.forEach((c) => checkOptionalFields(c, `${label} 選択肢${c.key}`, kijun))
+      if (q.explanation) explained++
     }
   }
 
-  console.log(`past_exams: ${index.length}ファイル・${globalIds.size}問を検証しました`)
+  console.log(`past_exams: ${index.length}ファイル・${globalIds.size}問を検証しました（解説あり ${explained}問）`)
 }
 
 validateCoverage(validateQuestionsJson())

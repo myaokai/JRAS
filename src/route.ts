@@ -8,14 +8,16 @@ export type Route =
   | { name: 'study-kakomon' }
   | { name: 'quiz' }
   | { name: 'result' }
-  | { name: 'textbook'; chapterId?: string; sectionId?: string }
+  // fromQuiz: 出題中の基準リンクから開いた（戻るボタンで出題に戻る）
+  | { name: 'textbook'; chapterId?: string; sectionId?: string; fromQuiz?: boolean }
   | { name: 'records' }
   | { name: 'settings' }
 
 export type Tab = 'home' | 'study' | 'textbook' | 'records' | 'settings'
 
 export function parseHash(hash: string): Route {
-  const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent)
+  const [path, query = ''] = hash.replace(/^#\/?/, '').split('?')
+  const parts = path.split('/').filter(Boolean).map(decodeURIComponent)
   switch (parts[0]) {
     case undefined:
       return { name: 'home' }
@@ -28,7 +30,12 @@ export function parseHash(hash: string): Route {
     case 'result':
       return { name: 'result' }
     case 'textbook':
-      return { name: 'textbook', chapterId: parts[1], sectionId: parts[2] }
+      return {
+        name: 'textbook',
+        chapterId: parts[1],
+        sectionId: parts[2],
+        ...(new URLSearchParams(query).get('from') === 'quiz' && { fromQuiz: true }),
+      }
     case 'records':
       return { name: 'records' }
     case 'settings':
@@ -50,7 +57,7 @@ export function toHash(route: Route): string {
       return ['#/textbook', route.chapterId, route.sectionId]
         .filter((p) => p !== undefined)
         .map((p, i) => (i === 0 ? p : encodeURIComponent(p as string)))
-        .join('/')
+        .join('/') + (route.fromQuiz ? '?from=quiz' : '')
     default:
       return `#/${route.name}`
   }

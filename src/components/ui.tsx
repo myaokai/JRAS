@@ -40,3 +40,36 @@ export function Stat({ value, label }: { value: ReactNode; label: string }) {
     </div>
   )
 }
+
+// 2〜4択の切り替え（出題方法・問題数など）
+export function Segmented<T extends string | number>({
+  options,
+  value,
+  onChange,
+  id,
+  label,
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (value: T) => void
+  id?: string
+  label: string
+}) {
+  return (
+    <div className="segmented" id={id} role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          className={`segmented-item${o.value === value ? ' active' : ''}`}
+          role="radio"
+          aria-checked={o.value === value}
+          data-value={o.value}
+          onClick={() => onChange(o.value)}
+          type="button"
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}

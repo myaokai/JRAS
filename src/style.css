@@ -708,3 +708,123 @@ body {
   .question-text { font-size: 0.95rem; line-height: 1.9; }
   .choice-btn { font-size: 0.86rem; padding: 12px 14px; }
 }
+
+/* ── 段階2：選択・結果・解説 ── */
+.segmented {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.segmented-item {
+  flex: 1;
+  padding: 10px 4px;
+  border: none;
+  border-right: 1px solid var(--border-lt);
+  background: none;
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.segmented-item:last-child { border-right: none; }
+.segmented-item.active { background: var(--accent); color: var(--surface); font-weight: 600; }
+
+#kakomonTab { margin-bottom: 4px; }
+
+.chapter-selection { margin-top: 22px; }
+.section-item { padding-left: 36px; }
+.chapter-item-label { font-size: 0.85rem; line-height: 1.4; }
+.chapter-item input[type="radio"] { accent-color: var(--accent); flex-shrink: 0; }
+
+.tree-toggle {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: -8px -8px -8px 0;
+  border: none;
+  background: none;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.kijun-link {
+  display: inline-block;
+  margin: 10px 0 4px;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+}
+
+.explanation {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.explanation-title { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em; color: var(--ink-2); }
+.explanation-text { margin-top: 6px; font-size: 0.88rem; line-height: 1.8; }
+
+.explanation-choice {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-lt);
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.explanation-choice .choice-key.is-answer { color: var(--ok); }
+.explanation-choice-body { flex: 1; min-width: 0; }
+.explanation-choice-body .kijun-link { display: block; margin: 2px 0 0; padding: 2px 0; }
+
+.bottom-bar-row { display: flex; gap: 10px; }
+.bottom-bar-row .btn-secondary { flex: 1; padding: 12px 8px; }
+
+.goal-card .row-title { margin-bottom: 8px; font-size: 0.88rem; }
+
+.result-list { list-style: none; }
+
+.result-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 0.82rem;
+}
+
+.result-item + .result-item { border-top: 1px solid var(--border-lt); }
+.result-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-item-due { flex-shrink: 0; color: var(--ink-2); font-size: 0.75rem; }
+.text-ok { color: var(--ok); }
+.result-item .text-ok, .result-item .text-ng { font-weight: 700; font-size: 0.9rem; }
+
+.exam-card { position: relative; }
+.exam-days { margin-top: 4px; font-size: 0.95rem; font-weight: 600; }
+.exam-days strong { font-size: 1.8rem; color: var(--accent); }
+
+.input {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.input-number { width: 72px; text-align: right; }

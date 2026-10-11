@@ -24,10 +24,11 @@ function isPortInUse(port) {
   });
 }
 
-function yesterday() {
-  const d = new Date(Date.now() - 86400000);
+function dayStr(offsetDays) {
+  const d = new Date(Date.now() + offsetDays * 86400000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+const yesterday = () => dayStr(-1);
 
 async function newPage(browser, errors) {
   const context = await browser.newContext(MOBILE);
@@ -187,6 +188,114 @@ async function playAnaume(page) {
     check('読み込み: 不正なファイルは拒否する', true);
     await other.context.close();
     fs.unlinkSync(file);
+
+    // ── 8. 段階2：節の選択・結果・本番形式・解説・基準リンク・試験日 ──
+    {
+      // Service Worker を止め、過去問データの差し替え（解説の確認用）が効くようにする
+      const context = await browser.newContext({ ...MOBILE, serviceWorkers: 'block' });
+      const page = await context.newPage();
+      page.on('pageerror', (e) => errors.push(e.message));
+      page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+      await page.route('**/past_exams/R07_kanteishi.json', async (route) => {
+        const json = await (await route.fetch()).json();
+        json.questions[0].explanation = '確認用の解説です。';
+        json.questions[0].choices[0].explanation = '確認用の選択肢の解説です。';
+        json.questions[0].choices[0].kijunRef = { chapter: '1', section: '1' };
+        await route.fulfill({ json });
+      });
+      const questions = JSON.parse(fs.readFileSync(path.join(__dirname, 'public/questions.json'), 'utf8'));
+      const sectionTitle = questions.chapters['8'].sections['4'];
+      const sectionCount = questions.questions.filter((q) => q.chapter === 8 && q.section === 4).length;
+
+      await page.goto(BASE_URL + '/#/study/anaume');
+      await page.waitForSelector('#startScreen');
+      await page.click('text=すべて解除');
+      check('範囲: すべて解除で開始できない', await page.$eval('#startBtn', (b) => b.disabled));
+      await page.click('[data-chapter="8"] .tree-toggle');
+      await page.click('[data-section="8-4"]');
+      await page.click('#sizeSelect [data-value="5"]');
+      await shot(page, '03-anaume-section');
+      check('範囲: 節1つの問題数が出る', (await text(page, '#startBtn')).includes(`${sectionCount}問から`), await text(page, '#startBtn'));
+      await page.click('#startBtn');
+      await page.waitForSelector('#quizScreen');
+      const total = Math.min(sectionCount, 5);
+      const categories = [];
+      for (let i = 0; i < total; i++) {
+        categories.push(await text(page, '#questionCategory'));
+        await page.click('#showAllBtn');
+        await page.click(i === 0 ? '.assess-btn.unknown' : '.assess-btn.known');
+        if (i === 0) {
+          // 基準リンク → 教科書 → 戻る
+          await page.click('.kijun-link');
+          await page.waitForSelector('#textbookScreen .textbook-body');
+          check('基準リンク: 該当の節を開く', page.url().includes('#/textbook/8/4?from=quiz'), page.url());
+          await page.click('#backToQuizBtn');
+          await page.waitForSelector('#quizScreen');
+          const title = await text(page, '.app-header h1');
+          check('基準リンク: 戻ると同じ問題・回答状態に戻る', title.startsWith('1 /') && !!(await page.$('.answer-feedback.wrong')) && !!(await page.$('#nextBtn')), title);
+        }
+        await page.click('#nextBtn');
+      }
+      check('範囲: 選んだ節の問題だけが出る', categories.every((c) => c.includes(sectionTitle)), categories.join(' | '));
+      await page.waitForSelector('#resultScreen');
+      await page.waitForTimeout(400); // 画面の表示アニメーションが終わるのを待つ
+      await shot(page, '05-result-detail');
+      const dues = await page.$$eval('.result-item-due', (els) => els.map((e) => e.dataset.due));
+      check('結果: 次回の復習日が記録と合う（×は今日、○は翌日）', dues[0] === dayStr(0) && dues.slice(1).every((d) => d === dayStr(1)), dues.join(','));
+      await page.click('#retryWrongBtn');
+      await page.waitForSelector('#quizScreen');
+      check('結果: 間違えた問題だけもう一度（1問）', (await text(page, '.app-header h1')).trim() === '1 / 1');
+
+      // 本番形式（R07 鑑定評価理論 40問）
+      await page.goto(BASE_URL + '/#/study/kakomon');
+      await page.waitForSelector('#startScreen');
+      await page.click('#formatSelect [data-value="exam"]');
+      await page.click('#realExamList input[value="R07_kanteishi"]');
+      await shot(page, '06-kakomon-exam');
+      await page.click('#startBtn');
+      await page.waitForSelector('#quizScreen');
+      check('本番形式: 40問で問1から始まる', (await text(page, '.app-header h1')).trim() === '1 / 40' && (await text(page, '#questionCategory')).includes('問1'));
+      await page.click('.choice-btn');
+      check('解説: 解答後に解説が出る', (await text(page, '#explanation')).includes('確認用の解説'));
+      await page.$eval('#explanation', (el) => el.scrollIntoView({ block: 'center' }));
+      await shot(page, '07-kakomon-explanation');
+      await page.click('#explanation .kijun-link');
+      await page.waitForSelector('#textbookScreen .textbook-body');
+      await page.goBack();
+      await page.waitForSelector('#quizScreen');
+      check('解説: 基準から戻っても回答が残る', !!(await page.$('#explanation')) && !(await page.$eval('#nextBtn', (b) => b.disabled)));
+      let lastNumber = '';
+      for (let i = 0; i < 40; i++) {
+        if (i > 0) await page.click('.choice-btn');
+        lastNumber = await text(page, '#questionCategory');
+        await page.click('#nextBtn');
+      }
+      await page.waitForSelector('#resultScreen');
+      check('本番形式: 問40まで番号順に解ける', lastNumber.includes('問40') && (await text(page, '#resultText')).includes('40'), lastNumber);
+      await page.goto(BASE_URL + '/#/study/kakomon');
+      await page.waitForSelector('#kakomonHistoryList');
+      check('本番形式: 履歴に40問のセットが残る', (await text(page, '#kakomonHistoryList .history-entry')).includes('/40'));
+      check('過去問: 間違えた問題タブに件数が出る', /間違えた問題 \d+/.test(await text(page, '#kakomonTab')));
+
+      // 試験日と1日の目標
+      await page.goto(BASE_URL + '/#/');
+      await page.waitForSelector('#homeScreen');
+      check('ホーム: 試験日が未設定なら設定を促す', (await text(page, '#examCountdown')).includes('試験日を設定する'));
+      await page.click('#examCountdown');
+      await page.waitForSelector('#settingsScreen');
+      await page.fill('#examDateInput', dayStr(30));
+      await page.fill('#dailyGoalInput', '30');
+      await page.click('#dailyGoalInput ~ span');
+      await page.click('[data-tab=home]');
+      await page.waitForSelector('#homeScreen');
+      check('ホーム: 試験日を入れると残り日数が出る', (await text(page, '#examDays')).includes('あと 30 日'), await text(page, '#examDays'));
+      check('ホーム: 1日の目標が設定値になる', (await text(page, '#todayCount')).includes('/ 30'), await text(page, '#todayCount'));
+      await page.reload();
+      await page.waitForSelector('#homeScreen');
+      check('ホーム: 試験日は再読み込み後も残る', (await text(page, '#examDays')).includes('あと 30 日'));
+      await shot(page, '01-home-exam');
+      await context.close();
+    }
 
     check('コンソールエラーがない', errors.length === 0, errors.join(' | '));
   } catch (e) {
