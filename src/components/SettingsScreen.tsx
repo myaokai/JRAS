@@ -8,11 +8,17 @@ import { Card, SectionTitle } from './ui'
 interface Props {
   navigate: Navigate
   lastBackupAt: number | null
+  examDate: string | null
+  dailyGoal: number
+  onExamDateChange: (date: string) => void
+  onDailyGoalChange: (goal: number) => void
   onExport: () => Promise<BackupV2>
   onImport: (text: string) => Promise<number>
 }
 
 const BACKUP_WARN_DAYS = 30
+const GOAL_MIN = 1
+const GOAL_MAX = 200
 
 type ServerState = { status: 'idle' | 'checking' } | { status: 'ok'; user: string } | { status: 'error'; message: string }
 
@@ -21,7 +27,7 @@ function daysSince(ms: number): number {
   return Math.round((b - a) / 86400000)
 }
 
-export function SettingsScreen({ navigate, lastBackupAt, onExport, onImport }: Props) {
+export function SettingsScreen({ navigate, lastBackupAt, examDate, dailyGoal, onExamDateChange, onDailyGoalChange, onExport, onImport }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [server, setServer] = useState<ServerState>({ status: 'idle' })
@@ -73,6 +79,44 @@ export function SettingsScreen({ navigate, lastBackupAt, onExport, onImport }: P
 
   return (
     <AppShell title="設定" tab="settings" navigate={navigate} screenId="settingsScreen">
+      <SectionTitle>試験と目標</SectionTitle>
+      <Card className="list-card">
+        <label className="row">
+          <div className="row-main">
+            <div className="row-title">試験日</div>
+            <div className="row-sub">ホームに残り日数を表示します</div>
+          </div>
+          <input
+            className="input"
+            id="examDateInput"
+            type="date"
+            value={examDate ?? ''}
+            onChange={(e) => onExamDateChange(e.target.value)}
+          />
+        </label>
+        <label className="row">
+          <div className="row-main">
+            <div className="row-title">1日の目標</div>
+            <div className="row-sub">ホームと結果画面の進捗に使います</div>
+          </div>
+          <input
+            className="input input-number"
+            id="dailyGoalInput"
+            type="number"
+            inputMode="numeric"
+            min={GOAL_MIN}
+            max={GOAL_MAX}
+            defaultValue={dailyGoal}
+            onBlur={(e) => {
+              const n = Math.round(Number(e.target.value))
+              if (Number.isFinite(n) && n >= GOAL_MIN && n <= GOAL_MAX) onDailyGoalChange(n)
+              else e.target.value = String(dailyGoal)
+            }}
+          />
+          <span className="muted">問</span>
+        </label>
+      </Card>
+
       <SectionTitle>学習データ</SectionTitle>
       <Card className="list-card">
         <button className="row row-button" id="exportBtn" onClick={() => void handleExport()} type="button">

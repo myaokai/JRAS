@@ -38,6 +38,8 @@ export const SETTING_KEYS = {
   habitLegacy: 'habit.legacy',
   migratedV1: 'migrated.v1',
   lastBackupAt: 'backup.lastExportedAt',
+  examDate: 'exam.date',
+  dailyGoal: 'goal.daily',
 } as const
 
 // 端末ごとの設定。書き出し・読み込みの対象にしない

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { addAnswer, getDb, importRecords, initStore, putSetting, type StoreSnapshot } from '../store/store'
 import { buildHabit, buildKakomonHistory, buildProblemRecord } from '../store/replay'
-import { SETTING_KEYS, type Answer, type AnswerMode, type AnswerResult, type LegacyHabit } from '../store/types'
+import { SETTING_KEYS, type Answer, type AnswerMode, type AnswerResult, type LegacyHabit, type Setting } from '../store/types'
 import { createBackup, parseBackup } from '../backup'
 import { isDue } from '../leitner'
 import { todayStr } from '../date'
+import { DAILY_GOAL } from '../habit'
 
 export interface AnswerInput {
   question_id: string
@@ -78,11 +79,22 @@ export function useStudyLog() {
   const habit = useMemo(() => buildHabit(answers, legacyHabit, today), [answers, legacyHabit, today])
   const history = useMemo(() => buildKakomonHistory(answers), [answers])
   const lastBackupAt = (settings[SETTING_KEYS.lastBackupAt]?.value as number | undefined) ?? null
+  const examDate = (settings[SETTING_KEYS.examDate]?.value as string | undefined) || null
+  const dailyGoal = (settings[SETTING_KEYS.dailyGoal]?.value as number | undefined) ?? DAILY_GOAL
+
+  // 設定の変更。updated_at は同期（2-9）で後から書いた方を採用するために使う
+  const updateSetting = useCallback((key: string, value: unknown) => {
+    const setting: Setting = { key, value, updated_at: Date.now() }
+    setSnapshot((prev) => prev && { ...prev, settings: { ...prev.settings, [key]: setting } })
+    getDb()
+      .then((db) => putSetting(db, setting))
+      .catch((e) => console.error('設定の保存に失敗しました', e))
+  }, [])
 
   const exportBackup = useCallback(async () => {
     const now = Date.now()
     const backup = createBackup(answers, Object.values(settings), now)
-    const setting = { key: SETTING_KEYS.lastBackupAt, value: now, updated_at: now }
+    const setting: Setting = { key: SETTING_KEYS.lastBackupAt, value: now, updated_at: now }
     setSnapshot((prev) => prev && { ...prev, settings: { ...prev.settings, [setting.key]: setting } })
     await putSetting(await getDb(), setting)
     return backup
@@ -109,7 +121,11 @@ export function useStudyLog() {
     habit,
     history,
     lastBackupAt,
+    examDate,
+    dailyGoal,
+    today,
     recordAnswer,
+    updateSetting,
     exportBackup,
     importBackup,
   }

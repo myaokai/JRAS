@@ -19,3 +19,12 @@ export function addDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return formatDate(new Date(y, m - 1, d + days))
 }
+
+// from から to までの日数（同じ日なら0、過ぎていれば負）
+export function daysBetween(from: string, to: string): number {
+  const toTime = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number)
+    return Date.UTC(y, m - 1, d)
+  }
+  return Math.round((toTime(to) - toTime(from)) / 86400000)
+}
