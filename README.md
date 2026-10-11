@@ -139,7 +139,7 @@ Cloudflare Workers（`wrangler.jsonc` の Worker「jras」）で配信します�
 `/api/*`（同期API）と `/audio/*`（音声）は `worker/index.ts` で処理します。設計は [docs/infrastructure.md](docs/infrastructure.md)。
 
 - ビルドコマンド: `npm run build`
-- デプロイ: `npx wrangler deploy`（Cloudflare の Git 連携を設定している場合は main へのマージで自動）
+- デプロイ: `main` へのマージで自動（Cloudflare Workers Builds）。手動で出すときは `npx wrangler deploy`
 
 デプロイ後に発行されるHTTPS URLをiPhone Safariで開き、「ホーム画面に追加」してください。
 

@@ -34,7 +34,7 @@ Cloudflare
 |---|---|
 | 現状 | `wrangler.jsonc` の Worker「jras」が `dist/` を配信している。`index.html` / `sw.js` などは Worker を通し、常に再検証させている（`worker/index.ts`） |
 | 変更点 | `/api/*` と `/audio/*` の振り分けを Worker に足す。`run_worker_first` に `/api/*` と `/audio/*` を加える |
-| デプロイ | 手動の `npm run build && npx wrangler deploy`（2026年10月時点。Git 連携の自動デプロイは未設定）。テーブル変更があるときは先に `npx wrangler d1 migrations apply jras-db --remote` を実行する |
+| デプロイ | Workers Builds（Git 連携）で、`main` へのマージ時に自動で `npm run build` → `npx wrangler deploy` を実行する。main 以外のブランチのビルド（プレビュー）はオフ。テーブル変更が入るようになったら、Deploy command の前に `npx wrangler d1 migrations apply jras-db --remote` を足す。手動で出すときは `npm run build && npx wrangler deploy` |
 
 ### 2. 学習記録：D1「jras-db」
 
