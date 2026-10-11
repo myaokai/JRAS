@@ -1,24 +1,33 @@
 import type { Navigate } from '../route'
 import type { QuestionsData } from '../types'
-import { QUESTIONS_PER_QUIZ } from '../constants'
+import { QUIZ_SIZES, type PoolMethod } from '../quizPool'
 import { AppShell } from './layout/AppShell'
 import { ChapterSelector } from './ChapterSelector'
-import { FilterBar } from './FilterBar'
+import { SectionTitle, Segmented } from './ui'
 
 interface Props {
   navigate: Navigate
   questionsData: QuestionsData
-  selectedChapters: Set<number>
-  onChaptersChange: (next: Set<number>) => void
-  filterUnlearned: boolean
-  onToggleFilterUnlearned: () => void
-  unlearnedCount: number
+  selectedSections: Set<string>
+  onSectionsChange: (next: Set<string>) => void
+  method: PoolMethod
+  onMethodChange: (method: PoolMethod) => void
+  size: number
+  onSizeChange: (size: number) => void
+  // 選択中の範囲・出題方法に当てはまる問題数
+  poolCount: number
   onStart: () => void
 }
 
+const METHODS: { value: PoolMethod; label: string }[] = [
+  { value: 'all', label: 'すべて' },
+  { value: 'due', label: '要復習のみ' },
+  { value: 'new', label: '未学習のみ' },
+]
+
 export function AnaumeSelectScreen(props: Props) {
-  const { navigate, filterUnlearned, unlearnedCount } = props
-  const count = filterUnlearned ? Math.min(unlearnedCount, QUESTIONS_PER_QUIZ) : QUESTIONS_PER_QUIZ
+  const { navigate, poolCount } = props
+  const count = Math.min(poolCount, props.size)
   return (
     <AppShell
       title="基準 穴埋め"
@@ -26,26 +35,26 @@ export function AnaumeSelectScreen(props: Props) {
       navigate={navigate}
       screenId="startScreen"
       footer={
-        <button id="startBtn" className="btn-primary btn-block" onClick={props.onStart} type="button">
-          {filterUnlearned ? `未習得 ${unlearnedCount}問から${count}問をはじめる` : `${count}問をはじめる`}
+        <button id="startBtn" className="btn-primary btn-block" onClick={props.onStart} disabled={count === 0} type="button">
+          {count === 0 ? '当てはまる問題がありません' : `${poolCount}問から${count}問をはじめる`}
         </button>
       }
     >
-      <p className="muted">穴埋め部分をタップすると答えが表示されます。</p>
-      <FilterBar
-        barId="anaumeFilterBar"
-        btnId="filterUnlearnedBtn"
-        countId="filterUnlearnedCount"
-        label="未習得・要復習だけ"
-        count={unlearnedCount}
-        active={filterUnlearned}
-        onToggle={props.onToggleFilterUnlearned}
+      <SectionTitle>出題方法</SectionTitle>
+      <Segmented id="methodSelect" label="出題方法" options={METHODS} value={props.method} onChange={props.onMethodChange} />
+      <SectionTitle>問題数</SectionTitle>
+      <Segmented
+        id="sizeSelect"
+        label="問題数"
+        options={QUIZ_SIZES.map((n) => ({ value: n, label: `${n}問` }))}
+        value={props.size}
+        onChange={props.onSizeChange}
       />
       <ChapterSelector
         chapters={props.questionsData.chapters}
         questions={props.questionsData.questions}
-        selectedChapters={props.selectedChapters}
-        onChange={props.onChaptersChange}
+        selected={props.selectedSections}
+        onChange={props.onSectionsChange}
       />
     </AppShell>
   )
