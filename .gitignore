@@ -7,3 +7,4 @@ dev-dist/
 *.tsbuildinfo
 .wrangler/
 __pycache__/
+.dev.vars

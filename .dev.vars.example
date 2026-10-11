@@ -1,0 +1,3 @@
+# `cp .dev.vars.example .dev.vars` してから `npm run dev:worker`。.dev.vars は git に入れない
+# ローカルでは Access の代わりに、この利用者でログインしている扱いにする
+DEV_USER=dev@example.com

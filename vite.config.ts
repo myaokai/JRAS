@@ -9,6 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,json,ico,png}'],
+        // API と音声は Worker が返す。Service Worker が index.html にすり替えないようにする
+        navigateFallbackDenylist: [/^\/api\//, /^\/audio\//],
       },
       manifest: {
         name: '穴埋め問題集 - 不動産鑑定評価基準',

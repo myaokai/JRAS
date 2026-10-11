@@ -1,17 +1,14 @@
-import { useMemo, useState } from 'react'
-import type { KijunData, Mode } from '../types'
-import { ModeTabs } from './ModeTabs'
+import { useMemo } from 'react'
+import type { KijunData } from '../types'
+import type { Navigate } from '../route'
+import { AppShell } from './layout/AppShell'
 
 interface Props {
-  mode: Mode
-  onModeChange: (mode: Mode) => void
+  navigate: Navigate
   kijunData: KijunData
+  chapterId?: string
+  sectionId?: string
 }
-
-type View =
-  | { level: 'chapters' }
-  | { level: 'chapter'; chapterId: string }
-  | { level: 'section'; chapterId: string; sectionId: string }
 
 interface Leaf {
   chapterId: string
@@ -50,22 +47,16 @@ function TextbookBody({ text }: { text: string }) {
   )
 }
 
-export function TextbookScreen({ mode, onModeChange, kijunData }: Props) {
-  const [view, setView] = useState<View>({ level: 'chapters' })
+export function TextbookScreen({ navigate, kijunData, chapterId, sectionId }: Props) {
   const leaves = useMemo(() => buildLeaves(kijunData), [kijunData])
+  const chapter = chapterId ? kijunData[chapterId] : undefined
+  const section = chapter && sectionId ? chapter.sections[sectionId] : undefined
 
-  const goToLeaf = (leaf: Leaf) => {
-    setView(
-      leaf.sectionId
-        ? { level: 'section', chapterId: leaf.chapterId, sectionId: leaf.sectionId }
-        : { level: 'chapter', chapterId: leaf.chapterId },
-    )
-  }
+  const goToLeaf = (leaf: Leaf) =>
+    navigate({ name: 'textbook', chapterId: leaf.chapterId, sectionId: leaf.sectionId ?? undefined })
 
-  const renderLeafNav = (chapterId: string, sectionId: string | null) => {
-    const index = leaves.findIndex(
-      (l) => l.chapterId === chapterId && l.sectionId === sectionId,
-    )
+  const renderLeafNav = (cid: string, sid: string | null) => {
+    const index = leaves.findIndex((l) => l.chapterId === cid && l.sectionId === sid)
     const prev = index > 0 ? leaves[index - 1] : null
     const next = index >= 0 && index < leaves.length - 1 ? leaves[index + 1] : null
     if (!prev && !next) return null
@@ -87,86 +78,68 @@ export function TextbookScreen({ mode, onModeChange, kijunData }: Props) {
     )
   }
 
-  return (
-    <div className="screen" id="textbookScreen">
-      <ModeTabs mode={mode} onChange={onModeChange} />
+  // 節の本文
+  if (chapterId && chapter && sectionId && section) {
+    return (
+      <AppShell
+        title={chapter.title}
+        onBack={() => navigate({ name: 'textbook', chapterId })}
+        tab="textbook"
+        navigate={navigate}
+        screenId="textbookScreen"
+      >
+        <h2 className="page-title">{section.title}</h2>
+        <TextbookBody text={section.text} />
+        {renderLeafNav(chapterId, sectionId)}
+      </AppShell>
+    )
+  }
 
-      {view.level === 'chapters' && (
-        <>
-          <h2>教科書</h2>
-          <p>不動産鑑定評価基準の本文を章・節ごとに読めます</p>
-          <div className="chapter-selection">
-            <div className="chapter-list">
-              {sortedIds(Object.keys(kijunData)).map((id) => (
-                <div
-                  key={id}
-                  className="chapter-item"
-                  onClick={() => setView({ level: 'chapter', chapterId: id })}
-                >
-                  <label>{kijunData[id].title}</label>
-                </div>
-              ))}
-            </div>
+  // 章（節の一覧、節がない章は本文）
+  if (chapterId && chapter) {
+    const sectionIds = sortedIds(Object.keys(chapter.sections))
+    return (
+      <AppShell
+        title={chapter.title}
+        onBack={() => navigate({ name: 'textbook' })}
+        tab="textbook"
+        navigate={navigate}
+        screenId="textbookScreen"
+      >
+        {chapter.intro && <TextbookBody text={chapter.intro} />}
+        {sectionIds.length > 0 && (
+          <div className="list">
+            {sectionIds.map((sid) => (
+              <button
+                key={sid}
+                className="list-item"
+                onClick={() => navigate({ name: 'textbook', chapterId, sectionId: sid })}
+                type="button"
+              >
+                <span>{chapter.sections[sid].title}</span>
+                <span className="chevron" aria-hidden="true">›</span>
+              </button>
+            ))}
           </div>
-        </>
-      )}
+        )}
+        {sectionIds.length === 0 && !chapter.intro && <p className="muted">本文はまだ収録されていません。</p>}
+        {sectionIds.length === 0 && renderLeafNav(chapterId, null)}
+      </AppShell>
+    )
+  }
 
-      {view.level === 'chapter' &&
-        (() => {
-          const chapter = kijunData[view.chapterId]
-          const sectionIds = sortedIds(Object.keys(chapter.sections))
-          return (
-            <>
-              <button
-                className="btn-secondary"
-                onClick={() => setView({ level: 'chapters' })}
-                type="button"
-              >
-                章一覧へ戻る
-              </button>
-              <h2>{chapter.title}</h2>
-              {chapter.intro && <TextbookBody text={chapter.intro} />}
-              {sectionIds.length > 0 && (
-                <div className="chapter-selection">
-                  <div className="chapter-list">
-                    {sectionIds.map((sid) => (
-                      <div
-                        key={sid}
-                        className="chapter-item"
-                        onClick={() =>
-                          setView({ level: 'section', chapterId: view.chapterId, sectionId: sid })
-                        }
-                      >
-                        <label>{chapter.sections[sid].title}</label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {sectionIds.length === 0 && renderLeafNav(view.chapterId, null)}
-            </>
-          )
-        })()}
-
-      {view.level === 'section' &&
-        (() => {
-          const chapter = kijunData[view.chapterId]
-          const section = chapter.sections[view.sectionId]
-          return (
-            <>
-              <button
-                className="btn-secondary"
-                onClick={() => setView({ level: 'chapter', chapterId: view.chapterId })}
-                type="button"
-              >
-                章に戻る
-              </button>
-              <h2>{section.title}</h2>
-              <TextbookBody text={section.text} />
-              {renderLeafNav(view.chapterId, view.sectionId)}
-            </>
-          )
-        })()}
-    </div>
+  // 目次
+  return (
+    <AppShell title="教科書" tab="textbook" navigate={navigate} screenId="textbookScreen">
+      <p className="muted">不動産鑑定評価基準の本文を章・節ごとに読めます。</p>
+      <div className="list">
+        {sortedIds(Object.keys(kijunData)).map((id) => (
+          <button key={id} className="list-item" onClick={() => navigate({ name: 'textbook', chapterId: id })} type="button">
+            <span>{kijunData[id].title}</span>
+            <span className="chevron" aria-hidden="true">›</span>
+          </button>
+        ))}
+      </div>
+    </AppShell>
   )
 }

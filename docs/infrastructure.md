@@ -109,6 +109,23 @@ CREATE TABLE settings (
 
 **最初に検証すること**：iPhone のホーム画面版（standalone 表示）で、Access のログイン後にアプリへ戻り、`/api/*` 用の Cookie が保たれるか。ホーム画面版の Cookie は Safari と別に管理されるため、実機で確認する。
 
+**設定手順**（Cloudflare のダッシュボードで行う。コード側は実装済み：`worker/access.ts`）
+
+1. Zero Trust → Settings → Authentication で、ログイン方法に One-time PIN を有効にする。
+2. Zero Trust → Access → Applications で「Self-hosted」のアプリを追加する。ドメインは Worker のホスト名、パスは `api/*`。セッションの長さは 1 か月。
+3. ポリシーを1つ作る。Action は Allow、Include は Emails に自分のメールアドレスだけを入れる。
+4. 作ったアプリの「Application Audience (AUD) Tag」と、チームドメイン（`https://<チーム名>.cloudflareaccess.com`）を、`wrangler.jsonc` の `vars`（`ACCESS_AUD`・`ACCESS_TEAM_DOMAIN`）に入れてデプロイする。
+5. PC のブラウザで `/api/me` を開き、PIN でログインして `{"user":"<メールアドレス>"}` が返ることを確かめる。
+
+**iPhone での確認手順**
+
+1. Safari でアプリを開き、ホーム画面に追加する（すでに追加済みなら、そのまま使う）。
+2. ホーム画面のアプリから「設定」→「サーバーとの接続」の「確認」を押す。最初は「ログインしていません」になる。
+3. ログイン画面をアプリの中で開く方法を確かめる（段階2-9で再ログインの導線を作るときの前提になる）。
+   - 試すこと：アプリ内のリンクで `/api/me` を開く → PIN でログイン → アプリに戻って「確認」を押すと「ログイン中」になるか。
+   - アプリを一度終了して開き直しても「ログイン中」のままか。
+4. 結果をこの節に書く。通らなければ、下の代替案（トークン方式）にする。
+
 **うまくいかなかったときの代替案**：Worker のシークレットに長いランダムのトークンを置き、設定画面で一度入力してもらう（`Authorization: Bearer`）。自分用で、扱うのが学習記録だけなので許容できる。
 
 ### 5. 音声：R2「jras-audio」
@@ -128,6 +145,16 @@ CREATE TABLE settings (
 | 復習の状態（ボックス・次回日） | メモリ（ログから計算）＋ IndexedDB にキャッシュ | ログを `answered_at` の順に再生して計算する。計算は日本時間の日付で行う |
 | 設定 | IndexedDB | 試験日、1日の目標、端末ID、同期の位置（cursor） |
 | 表示のちょっとした状態 | localStorage | 最後に開いた節、選んだチップなど（消えても困らないもの） |
+
+**問題IDの規則**（解答ログの `question_id`）
+
+| 種類 | 形式 | 例 |
+|---|---|---|
+| 基準 穴埋め（既存） | `questions.json` の `id` を文字列にしたもの | `"123"` |
+| 短答 過去問（既存） | `<年度>_<科目>_<3桁の問題番号>` | `"R07_kanteishi_001"` |
+| 今後追加する科目・モード | `<科目またはモード>:<ID>` | `"anshou:5-3-1"`、`"minpo:42"` |
+
+既存の2種類は学習記録を引き継ぐため変えない。新しく足すものは `:` を含む接頭辞を付けて、既存IDとぶつからないようにする。
 
 ### 7. 既存データの移行
 
@@ -164,7 +191,7 @@ CREATE TABLE settings (
 
 | 環境 | 内容 |
 |---|---|
-| ローカル | `wrangler dev` でローカルの D1・R2 を使う。Access の代わりに、開発用ユーザーを固定する（`vars` に `DEV_USER` を置き、本番では使わない） |
+| ローカル | `cp .dev.vars.example .dev.vars` のあと `npm run dev:worker`（ビルドして `wrangler dev`、http://localhost:8787）。Access の代わりに `.dev.vars` の `DEV_USER` でログイン扱いにする（`wrangler.jsonc` の `vars` には書かない）。D1・R2 は、実物を作る段階2-8・3-1でバインディングを足してから使う |
 | 本番 | Worker「jras」。D1・R2 のバインディングを `wrangler.jsonc` に追加する |
 | プレビュー環境 | 自分用なので作らない。必要になったら `env.preview` を足す |
 
