@@ -297,6 +297,27 @@ async function playAnaume(page) {
       await context.close();
     }
 
+    // ── 9. ログイン切れ（Cloudflare Access）の案内と再ログイン ──
+    {
+      const context = await browser.newContext({ ...MOBILE, serviceWorkers: 'block' });
+      const page = await context.newPage();
+      page.on('pageerror', (e) => errors.push(e.message));
+      // Access のログイン画面へのリダイレクトを再現する
+      await page.route('**/api/me', (route) => route.fulfill({ status: 302, headers: { Location: 'https://example.cloudflareaccess.com/cdn-cgi/access/login' } }));
+      await page.route('**/api/login', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="loginPage">login</p>' }));
+      await page.goto(BASE_URL + '/#/');
+      await page.waitForSelector('#sessionBanner');
+      check('ログイン切れ: ホームに案内が出る', (await text(page, '#sessionBanner')).includes('ログインが切れています'));
+      await shot(page, '01-home-session-expired');
+      await page.click('[data-tab=settings]');
+      await page.waitForSelector('#settingsScreen');
+      check('ログイン切れ: 設定に状態が出る', (await text(page, '#serverStatus')).includes('ログインが切れています'));
+      await page.click('#reloginBtn');
+      await page.waitForSelector('#loginPage');
+      check('再ログイン: /api/login を開く', page.url().endsWith('/api/login'), page.url());
+      await context.close();
+    }
+
     check('コンソールエラーがない', errors.length === 0, errors.join(' | '));
   } catch (e) {
     check('例外なく最後まで進む', false, e.message);

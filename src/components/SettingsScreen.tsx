@@ -3,10 +3,13 @@ import type { Navigate } from '../route'
 import { BackupError, backupFileName, type BackupV2 } from '../backup'
 import { dateStrOf, todayStr } from '../date'
 import { AppShell } from './layout/AppShell'
+import { relogin, type SessionState } from '../session'
 import { Card, SectionTitle } from './ui'
 
 interface Props {
   navigate: Navigate
+  session: SessionState
+  onRefreshSession: () => void
   lastBackupAt: number | null
   examDate: string | null
   dailyGoal: number
@@ -20,17 +23,14 @@ const BACKUP_WARN_DAYS = 30
 const GOAL_MIN = 1
 const GOAL_MAX = 200
 
-type ServerState = { status: 'idle' | 'checking' } | { status: 'ok'; user: string } | { status: 'error'; message: string }
-
 function daysSince(ms: number): number {
   const [a, b] = [dateStrOf(ms), todayStr()].map((s) => new Date(s).getTime())
   return Math.round((b - a) / 86400000)
 }
 
-export function SettingsScreen({ navigate, lastBackupAt, examDate, dailyGoal, onExamDateChange, onDailyGoalChange, onExport, onImport }: Props) {
+export function SettingsScreen({ navigate, session, onRefreshSession, lastBackupAt, examDate, dailyGoal, onExamDateChange, onDailyGoalChange, onExport, onImport }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [server, setServer] = useState<ServerState>({ status: 'idle' })
 
   const handleExport = async () => {
     const backup = await onExport()
@@ -56,21 +56,6 @@ export function SettingsScreen({ navigate, lastBackupAt, examDate, dailyGoal, on
       if (!(e instanceof BackupError)) console.error(e)
     } finally {
       if (fileRef.current) fileRef.current.value = ''
-    }
-  }
-
-  const checkServer = async () => {
-    setServer({ status: 'checking' })
-    try {
-      const res = await fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' })
-      if (res.ok) {
-        const body = (await res.json()) as { user: string }
-        setServer({ status: 'ok', user: body.user })
-      } else {
-        setServer({ status: 'error', message: res.status === 401 ? 'ログインしていません' : `エラー（${res.status}）` })
-      }
-    } catch {
-      setServer({ status: 'error', message: '接続できません（オフライン？）' })
     }
   }
 
@@ -156,22 +141,30 @@ export function SettingsScreen({ navigate, lastBackupAt, examDate, dailyGoal, on
         </p>
       )}
 
-      <SectionTitle>同期（準備中）</SectionTitle>
+      <SectionTitle>ログイン</SectionTitle>
       <Card className="list-card">
         <div className="row">
           <div className="row-main">
-            <div className="row-title">サーバーとの接続</div>
+            <div className="row-title">Cloudflare アカウント</div>
             <div className="row-sub" id="serverStatus">
-              {server.status === 'idle' && '未確認'}
-              {server.status === 'checking' && '確認中…'}
-              {server.status === 'ok' && `ログイン中：${server.user}`}
-              {server.status === 'error' && server.message}
+              {session.status === 'checking' && '確認中…'}
+              {session.status === 'ok' && `ログイン中：${session.user}`}
+              {session.status === 'expired' && 'ログインが切れています（更新と同期が止まります）'}
+              {session.status === 'offline' && 'オフラインのため確認できません'}
+              {session.status === 'error' && `確認できません：${session.message}`}
             </div>
           </div>
-          <button className="btn-small" id="checkServerBtn" onClick={() => void checkServer()} type="button">
+          <button className="btn-small" id="checkServerBtn" onClick={onRefreshSession} type="button">
             確認
           </button>
         </div>
+        <button className="row row-button" id="reloginBtn" onClick={relogin} type="button">
+          <div className="row-main">
+            <div className="row-title">ログインし直す</div>
+            <div className="row-sub">Cloudflare のログイン画面を開き、終わるとアプリに戻ります</div>
+          </div>
+          <span aria-hidden="true">›</span>
+        </button>
       </Card>
     </AppShell>
   )

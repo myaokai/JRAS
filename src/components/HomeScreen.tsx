@@ -1,12 +1,15 @@
 import type { Navigate } from '../route'
 import type { HabitSummary } from '../store/replay'
 import { daysBetween } from '../date'
+import { relogin } from '../session'
 import { AppShell } from './layout/AppShell'
 import { Card, ProgressBar, SectionTitle } from './ui'
 
 interface Props {
   navigate: Navigate
   habit: HabitSummary
+  // ログインが切れている（更新と同期が止まっている）
+  sessionExpired: boolean
   today: string
   examDate: string | null
   dailyGoal: number
@@ -16,7 +19,7 @@ interface Props {
   onStartKakomonReview: () => void
 }
 
-export function HomeScreen({ navigate, habit, today, examDate, dailyGoal, anaumeReviewCount, kakomonReviewCount, onStartAnaumeReview, onStartKakomonReview }: Props) {
+export function HomeScreen({ navigate, habit, sessionExpired, today, examDate, dailyGoal, anaumeReviewCount, kakomonReviewCount, onStartAnaumeReview, onStartKakomonReview }: Props) {
   const reviews = [
     { label: '基準 穴埋め', count: anaumeReviewCount, onStart: onStartAnaumeReview, id: 'reviewAnaumeBtn' },
     { label: '短答 過去問', count: kakomonReviewCount, onStart: onStartKakomonReview, id: 'reviewKakomonBtn' },
@@ -25,6 +28,17 @@ export function HomeScreen({ navigate, habit, today, examDate, dailyGoal, anaume
 
   return (
     <AppShell title="鑑定士 学習" tab="home" navigate={navigate} screenId="homeScreen">
+      {sessionExpired && (
+        <div className="session-banner" id="sessionBanner" role="alert">
+          <div className="row-main">
+            <div className="row-title">ログインが切れています</div>
+            <div className="row-sub">アプリの更新と同期が止まっています。学習の記録はこの端末に残ります</div>
+          </div>
+          <button className="btn-primary btn-compact" id="reloginBannerBtn" onClick={relogin} type="button">
+            ログイン
+          </button>
+        </div>
+      )}
       <Card className="exam-card" id="examCountdown" onClick={examDate ? undefined : () => navigate({ name: 'settings' })}>
         <ExamCountdown today={today} examDate={examDate} />
       </Card>

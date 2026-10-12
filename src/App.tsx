@@ -4,6 +4,7 @@ import { isKakomonQuestion } from './types'
 import { loadExamData, loadExamIndex, loadKijunData, loadQuestionsData } from './data/loadData'
 import { useStudyLog } from './hooks/useStudyLog'
 import { useHashRoute } from './route'
+import { useSession } from './session'
 import { HomeScreen } from './components/HomeScreen'
 import { StudyScreen } from './components/StudyScreen'
 import { AnaumeSelectScreen } from './components/AnaumeSelectScreen'
@@ -60,6 +61,7 @@ function App() {
   const [quiz, setQuiz] = useState<Quiz | null>(null)
 
   const log = useStudyLog()
+  const { session, refresh: refreshSession } = useSession()
   const { dueIds, problemRecord, today, recordAnswer } = log
 
   useEffect(() => {
@@ -191,6 +193,7 @@ function App() {
         <HomeScreen
           {...common}
           habit={log.habit}
+          sessionExpired={session.status === 'expired'}
           today={today}
           examDate={log.examDate}
           dailyGoal={log.dailyGoal}
@@ -302,6 +305,8 @@ function App() {
       return (
         <SettingsScreen
           {...common}
+          session={session}
+          onRefreshSession={() => void refreshSession()}
           lastBackupAt={log.lastBackupAt}
           examDate={log.examDate}
           dailyGoal={log.dailyGoal}

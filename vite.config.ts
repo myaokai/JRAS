@@ -7,6 +7,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // アプリ全体を Cloudflare Access で保護しているため、manifest の取得にもログインの Cookie を付ける
+      useCredentials: true,
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,json,ico,png}'],
         // API と音声は Worker が返す。Service Worker が index.html にすり替えないようにする
