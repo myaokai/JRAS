@@ -381,6 +381,57 @@ async function playAnaume(page) {
       await pc.context.close();
     }
 
+    // 計算ドリル（4-2）。別の端末で、他の確認の解答数に影響させない
+    {
+      const { context, page } = await newPage(browser, errors);
+      await page.goto(BASE_URL + '/#/study');
+      await page.click('#modeDrill');
+      await page.waitForSelector('#drillScreen');
+      check('ドリル: 最初は直接還元法', (await text(page, '.drill-type.active')) === '直接還元法');
+      check('ドリル: 未入力では答え合わせできない', await page.$eval('#drillCheck', (b) => b.disabled));
+
+      // 表示された条件から収益価格を計算して入力する
+      const cond = async () => Object.fromEntries(await page.$$eval('.drill-condition', (rows) => rows.map((r) => [r.querySelector('dt').textContent, r.querySelector('dd').textContent])));
+      const num = (s) => Number(s.replace(/[^\d.]/g, ''));
+      const c1 = await cond();
+      const expected = Math.round((num(c1['総収益（年額）']) - num(c1['総費用（年額）'])) / (num(c1['還元利回り']) / 100));
+      await page.fill('#drillInput', expected.toLocaleString('ja-JP'));
+      await page.click('#drillCheck');
+      check('ドリル: 正しく計算すると正解', (await text(page, '#drillFeedback')).startsWith('正解'), await text(page, '#drillFeedback'));
+      const stepCount = () => page.$$eval('.drill-steps li', (l) => l.length);
+      check('ドリル: 計算過程は1行目から表示される', (await stepCount()) === 1);
+      await page.click('#drillNextStep');
+      check('ドリル: 次の手順で1行ずつ増える', (await stepCount()) === 2);
+      await shot(page, '12-drill-correct');
+
+      await page.click('#drillNext');
+      const c2 = await cond();
+      check('ドリル: 次の問題は同じ型で数値が変わる', (await text(page, '.drill-type.active')) === '直接還元法' && JSON.stringify(c1) !== JSON.stringify(c2));
+      await page.fill('#drillInput', '1');
+      await page.press('#drillInput', 'Enter');
+      check('ドリル: 誤った値は不正解', (await text(page, '#drillFeedback')).startsWith('不正解'));
+
+      await page.click('.drill-type[data-value="dcf"]');
+      check('ドリル: 手法を切り替えられる', 'DCF法' === (await text(page, '.drill-type.active')) && '割引率' in (await cond()));
+      await page.click('#drillGiveUp');
+      check('ドリル: わからないで答えと計算過程が出る', (await text(page, '#drillFeedback')).startsWith('答え') && (await stepCount()) === 1);
+      await page.click('#drillAllSteps');
+      check('ドリル: すべて表示で全行が出る', (await stepCount()) >= 8);
+      const before = JSON.stringify(await cond());
+      await page.click('#drillSteps .kijun-link');
+      await page.waitForSelector('#textbookScreen');
+      check('ドリル: 基準リンクで総論第７章第１節を開く', (await page.textContent('#textbookScreen')).includes('価格を求める鑑定評価の手法'));
+      await page.click('.header-back');
+      await page.waitForSelector('#drillScreen');
+      check('ドリル: 教科書から戻ると同じ問題と結果が残る', JSON.stringify(await cond()) === before && (await stepCount()) >= 8);
+
+      await page.goto(BASE_URL + '/#/');
+      await page.waitForSelector('#homeScreen');
+      check('ドリル: 解いた数が今日の解答数に入る', (await text(page, '#todayCount')).trim().startsWith('3'), await text(page, '#todayCount'));
+      check('ドリル: 復習の件数には入らない', (await text(page, '#homeScreen')).includes('復習期限の問題はありません'));
+      await context.close();
+    }
+
     check('コンソールエラーがない', errors.length === 0, errors.join(' | '));
   } catch (e) {
     check('例外なく最後まで進む', false, e.message);

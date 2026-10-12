@@ -8,6 +8,7 @@ describe('route', () => {
     ['#/study', { name: 'study' }],
     ['#/study/anaume', { name: 'study-anaume' }],
     ['#/study/kakomon', { name: 'study-kakomon' }],
+    ['#/study/drill', { name: 'study-drill' }],
     ['#/quiz', { name: 'quiz' }],
     ['#/textbook', { name: 'textbook', chapterId: undefined, sectionId: undefined }],
     ['#/textbook/5/2', { name: 'textbook', chapterId: '5', sectionId: '2' }],
@@ -22,6 +23,7 @@ describe('route', () => {
     const routes: Route[] = [
       { name: 'home' },
       { name: 'study-kakomon' },
+      { name: 'study-drill' },
       { name: 'textbook', chapterId: '3' },
       { name: 'textbook', chapterId: '3', sectionId: '1' },
       { name: 'textbook', chapterId: '4', fromQuiz: true },

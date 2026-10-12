@@ -40,7 +40,15 @@ export function StudyScreen({ navigate, anaumeReviewCount, kakomonReviewCount, w
       </Card>
 
       <SectionTitle>論文式</SectionTitle>
-      <p className="muted">暗唱チェック・論文過去問・計算ドリルは今後追加します。</p>
+      <Card onClick={() => navigate({ name: 'study-drill' })} id="modeDrill">
+        <div className="row">
+          <div className="row-main">
+            <div className="row-title">演習 計算ドリル</div>
+            <div className="row-sub">収益還元法・原価法・取引事例比較法・継続賃料（毎回違う数値）</div>
+          </div>
+        </div>
+      </Card>
+      <p className="muted">暗唱チェック・論文過去問は今後追加します。</p>
     </AppShell>
   )
 }

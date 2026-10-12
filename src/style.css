@@ -842,3 +842,56 @@ body {
 }
 
 .session-banner .row-title { color: var(--ng); font-size: 0.9rem; }
+
+/* ── 計算ドリル ── */
+.drill-types {
+  display: flex;
+  gap: 8px;
+  margin: 0 -16px 12px;
+  padding: 2px 16px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.drill-types::-webkit-scrollbar { display: none; }
+
+.drill-type {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.drill-type.active { border-color: var(--accent); background: var(--accent); color: var(--surface); font-weight: 600; }
+
+.drill-conditions { margin: 0; }
+.drill-condition {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-lt);
+  font-size: 0.85rem;
+}
+.drill-condition dt { flex-shrink: 0; max-width: 50%; color: var(--ink-2); }
+.drill-condition dd { margin: 0; font-weight: 600; text-align: right; }
+
+.drill-prompt { margin: 12px 0; font-size: 0.9rem; line-height: 1.7; }
+
+.drill-input-row { display: flex; align-items: center; gap: 8px; }
+/* 16px 未満だと iPhone で入力時に拡大される */
+.drill-input { flex: 1; min-width: 0; font-size: 1.05rem; text-align: right; }
+.drill-unit { font-size: 0.9rem; color: var(--ink-2); }
+
+.bottom-bar-row .drill-check { flex: 2; }
+
+#drillFeedback { margin: 12px 0; }
+
+.drill-steps { margin: 8px 0 0; padding-left: 1.4em; font-size: 0.85rem; line-height: 1.7; }
+.drill-steps li { margin-bottom: 8px; }
+.drill-step-label { display: block; font-weight: 600; }
+.drill-step-expr { display: block; overflow-wrap: anywhere; }
+.drill-step-actions { display: flex; gap: 8px; margin-top: 4px; }

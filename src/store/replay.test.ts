@@ -43,6 +43,12 @@ describe('buildProblemRecord', () => {
     ]
     expect(buildProblemRecord(log)['1']).toMatchObject({ box: 4, dueDate: '2026-10-29' })
   })
+
+  it('計算ドリルは復習の対象にしない（今日の解答数には数える）', () => {
+    const log = [ans('drill:dcf', 0, at('2026-10-12'), { mode: 'drill' })]
+    expect(buildProblemRecord(log)).toEqual({})
+    expect(buildHabit(log, null, '2026-10-12').todayCount).toBe(1)
+  })
 })
 
 describe('buildHabit', () => {
