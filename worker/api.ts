@@ -1,5 +1,6 @@
 import type { Env } from './env'
 import { verifyAccessJwt } from './access'
+import { exportAll, parseSyncRequest, sync } from './sync'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -32,6 +33,19 @@ export async function handleApi(request: Request, env: Env, pathname: string): P
   if (pathname === '/api/login' && request.method === 'GET') {
     return new Response(null, { status: 302, headers: { Location: '/', 'Cache-Control': 'no-store' } })
   }
-  // /api/sync・/api/export は段階2-8で追加する
+  if (pathname === '/api/sync' && request.method === 'POST') {
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return json({ error: 'invalid_json' }, 400)
+    }
+    const req = parseSyncRequest(body)
+    if (typeof req === 'string') return json({ error: 'invalid_request', message: req }, 400)
+    return json(await sync(env.DB, user, req))
+  }
+  if (pathname === '/api/export' && request.method === 'GET') {
+    return json(await exportAll(env.DB, user))
+  }
   return json({ error: 'not_found' }, 404)
 }
