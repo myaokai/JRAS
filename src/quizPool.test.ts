@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { anaumePool, inExamOrder, pickRandom, sectionKey } from './quizPool'
-import type { AnaumeQuestion, KakomonQuestion, ProblemRecord } from './types'
+import { anaumePool, anshouPool, inExamOrder, pickRandom, sectionKey, splitDueIds } from './quizPool'
+import type { AnaumeQuestion, AnshouUnit, KakomonQuestion, ProblemRecord } from './types'
 
 const q = (id: number, chapter: number, section: number): AnaumeQuestion => ({ id, chapter, section, text: '' })
 const QUESTIONS = [q(1, 8, 4), q(2, 8, 4), q(3, 8, 5), q(4, 4, 0), q(5, 1, 1)]
@@ -41,5 +41,34 @@ describe('pickRandom / inExamOrder', () => {
   it('本番形式は問題番号順', () => {
     const k = (number: number) => ({ id: `R07_kanteishi_${number}`, number, instruction: '', choices: [], answer: '1' }) as KakomonQuestion
     expect(inExamOrder([k(3), k(1), k(2)]).map((x) => x.number)).toEqual([1, 2, 3])
+  })
+})
+
+describe('anshouPool', () => {
+  const u = (id: string, chapter: number, section: number): AnshouUnit => ({ id, chapter, section, context: '', title: id, prompt: '', text: '' })
+  const UNITS = [u('anshou:4-0-1', 4, 0), u('anshou:5-3-1', 5, 3), u('anshou:5-3-2', 5, 3)]
+  const rec: ProblemRecord = {
+    'anshou:5-3-1': { box: 1, dueDate: '2026-10-12', lastResult: true, ts: 0 },
+    'anshou:5-3-2': { box: 2, dueDate: '2026-10-20', lastResult: true, ts: 0 },
+  }
+  const all = new Set(UNITS.map((x) => sectionKey(x.chapter, x.section)))
+
+  it('要復習のみ：期限が来た単位だけ', () => {
+    expect(anshouPool(UNITS, all, 'due', rec, TODAY).map((x) => x.id)).toEqual(['anshou:5-3-1'])
+  })
+
+  it('節で絞り込める', () => {
+    expect(anshouPool(UNITS, new Set(['4-0']), 'all', rec, TODAY).map((x) => x.id)).toEqual(['anshou:4-0-1'])
+  })
+})
+
+describe('splitDueIds', () => {
+  it('穴埋め・過去問・暗唱に分ける（暗唱やドリルが穴埋めに混ざらない）', () => {
+    const due = ['12', 'R07_kanteishi_003', 'anshou:5-3-2', 'drill:dcf', '7']
+    expect(splitDueIds(due, (id) => id.startsWith('R07_'))).toEqual({
+      anaume: ['12', '7'],
+      kakomon: ['R07_kanteishi_003'],
+      anshou: ['anshou:5-3-2'],
+    })
   })
 })

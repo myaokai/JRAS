@@ -1,4 +1,4 @@
-import { nextEntry } from '../leitner'
+import { nextEntry, partialEntry } from '../leitner'
 import { addDays, dateStrOf } from '../date'
 import type { KakomonHistory, ProblemRecord, ProblemRecordEntry } from '../types'
 import type { Answer, LegacyHabit } from './types'
@@ -22,7 +22,8 @@ export function buildProblemRecord(answers: Answer[]): ProblemRecord {
     if (a.mode === 'snapshot') {
       if (a.payload) record[a.question_id] = JSON.parse(a.payload) as ProblemRecordEntry
     } else {
-      record[a.question_id] = nextEntry(record[a.question_id], a.result === 2, a.answered_at)
+      const prev = record[a.question_id]
+      record[a.question_id] = a.result === 1 ? partialEntry(prev, a.answered_at) : nextEntry(prev, a.result === 2, a.answered_at)
     }
   }
   return record

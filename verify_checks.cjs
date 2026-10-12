@@ -432,6 +432,67 @@ async function playAnaume(page) {
       await context.close();
     }
 
+    // 暗唱チェック（4-1）。別の端末で、他の確認の解答数に影響させない
+    {
+      const { context, page } = await newPage(browser, errors);
+      await page.goto(BASE_URL + '/#/study');
+      await page.click('#modeAnshou');
+      await page.waitForSelector('#startScreen');
+      check('暗唱: 選択画面が開く', (await text(page, '.app-header h1')) === '暗唱チェック');
+      await page.click('#sizeSelect [data-value="5"]');
+      check('暗唱: 全件から5問', /^\d+問から5問をはじめる$/.test(await text(page, '#startBtn')), await text(page, '#startBtn'));
+      await page.click('#startBtn');
+      await page.waitForSelector('#anshouPrompt');
+      check('暗唱: お題が出て、本文はまだ出ない', (await text(page, '#anshouPrompt')).length > 0 && !(await page.$('#anshouText')));
+
+      await page.click('#anshouHintBtn');
+      check('暗唱: ヒントで書き出しが出る', (await text(page, '#anshouHint')).startsWith('ヒント：'));
+      await page.fill('#anshouMemo', 'メモのテスト');
+      await page.click('#showTextBtn');
+      check('暗唱: 本文を表示で基準の本文が出る', (await text(page, '#anshouText .anshou-text')).length > 20);
+      // 基準リンクで教科書へ行って戻っても、本文表示とメモが残る
+      await page.click('#anshouText .kijun-link');
+      await page.waitForSelector('#textbookScreen');
+      await page.click('.header-back');
+      await page.waitForSelector('#anshouText');
+      check('暗唱: 教科書から戻ると本文とメモが残る', (await page.inputValue('#anshouMemo')) === 'メモのテスト');
+      await shot(page, '10-anshou');
+
+      // 5問を「書けた・一部・書けなかった・書けた・書けた」で評価する
+      const grades = [2, 1, 0, 2, 2];
+      for (let i = 0; i < grades.length; i++) {
+        if (i > 0) {
+          await page.waitForSelector('#showTextBtn');
+          await page.click('#showTextBtn');
+        }
+        await page.click(`#anshouAssess [data-grade="${grades[i]}"]`);
+        if (i === 1) check('暗唱: 一部は明日もう一度', (await text(page, '#anshouFeedback')).includes('明日'));
+        await page.click('#nextBtn');
+      }
+      await page.waitForSelector('#resultScreen');
+      const marks = await page.$$eval('#resultList .result-item > span:first-child', (els) => els.map((e) => e.textContent).join(''));
+      check('暗唱: 結果に ○△× が出る', marks === '○△×○○', marks);
+      check('暗唱: 「書けた」の割合', (await text(page, '#resultText')).includes('「書けた」60%'));
+      const dues = await page.$$eval('#resultList .result-item-due', (els) => els.map((e) => e.dataset.due));
+      check('暗唱: 一部は翌日、書けなかったは今日が次回', dues[1] === dayStr(1) && dues[2] === dayStr(0), dues.join(','));
+      check('暗唱: もう一度は「書けた」以外の2問', (await text(page, '#retryWrongBtn')).includes('2問'));
+
+      // 要復習のみ：期限が来たもの（書けなかった1問）だけ
+      await page.click('#retryBtn');
+      await page.waitForSelector('#startScreen');
+      await page.click('#methodSelect [data-value="due"]');
+      check('暗唱: 要復習のみは期限の来た1問だけ', (await text(page, '#startBtn')) === '1問から1問をはじめる', await text(page, '#startBtn'));
+
+      await page.goto(BASE_URL + '/#/');
+      await page.waitForSelector('#homeScreen');
+      const rows = await page.$$eval('#homeScreen .row', (els) => els.map((e) => e.textContent));
+      check('暗唱: ホームの復習に暗唱1問、穴埋めには混ざらない', rows.some((r) => r.includes('暗唱チェック') && r.includes('1問')) && rows.some((r) => r.includes('基準 穴埋め') && r.includes('0問')), rows.join(' / '));
+      await page.click('#reviewAnshouBtn');
+      await page.waitForSelector('#anshouPrompt');
+      check('暗唱: ホームから復習を始めると1問', (await text(page, '.app-header h1')) === '1 / 1');
+      await context.close();
+    }
+
     check('コンソールエラーがない', errors.length === 0, errors.join(' | '));
   } catch (e) {
     check('例外なく最後まで進む', false, e.message);

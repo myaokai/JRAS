@@ -99,8 +99,30 @@ export interface KakomonHistoryEntry {
 
 export type KakomonHistory = KakomonHistoryEntry[]
 
+// 暗唱チェックの単位（public/anshou.json。scripts/extract_anshou.py で基準本文から作る）
+export interface AnshouUnit {
+  id: string
+  chapter: number
+  section: number
+  // 「総論 第５章 第３節 ＞ 価格」のような位置
+  context: string
+  title: string
+  // お題（例「限定価格とは」）
+  prompt: string
+  // 基準の本文（手を加えない）
+  text: string
+}
+
+export interface AnshouData {
+  units: AnshouUnit[]
+}
+
+export function isAnshouUnit(item: AnaumeQuestion | KakomonQuestion | AnshouUnit): item is AnshouUnit {
+  return 'prompt' in item
+}
+
 export function isKakomonQuestion(
-  item: AnaumeQuestion | KakomonQuestion,
+  item: AnaumeQuestion | KakomonQuestion | AnshouUnit,
 ): item is KakomonQuestion {
   return 'choices' in item
 }

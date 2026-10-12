@@ -15,16 +15,20 @@ interface Props {
   dailyGoal: number
   anaumeReviewCount: number
   kakomonReviewCount: number
+  anshouReviewCount: number
   onStartAnaumeReview: () => void
+  onStartAnshouReview: () => void
   onStartKakomonReview: () => void
 }
 
-export function HomeScreen({ navigate, habit, sessionExpired, today, examDate, dailyGoal, anaumeReviewCount, kakomonReviewCount, onStartAnaumeReview, onStartKakomonReview }: Props) {
+export function HomeScreen(props: Props) {
+  const { navigate, habit, sessionExpired, today, examDate, dailyGoal } = props
   const reviews = [
-    { label: '基準 穴埋め', count: anaumeReviewCount, onStart: onStartAnaumeReview, id: 'reviewAnaumeBtn' },
-    { label: '短答 過去問', count: kakomonReviewCount, onStart: onStartKakomonReview, id: 'reviewKakomonBtn' },
+    { label: '基準 穴埋め', count: props.anaumeReviewCount, onStart: props.onStartAnaumeReview, id: 'reviewAnaumeBtn' },
+    { label: '短答 過去問', count: props.kakomonReviewCount, onStart: props.onStartKakomonReview, id: 'reviewKakomonBtn' },
+    { label: '暗唱チェック', count: props.anshouReviewCount, onStart: props.onStartAnshouReview, id: 'reviewAnshouBtn' },
   ]
-  const totalReview = anaumeReviewCount + kakomonReviewCount
+  const totalReview = reviews.reduce((sum, r) => sum + r.count, 0)
 
   return (
     <AppShell title="鑑定士 学習" tab="home" navigate={navigate} screenId="homeScreen">

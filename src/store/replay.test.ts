@@ -8,7 +8,7 @@ const at = (date: string, hour = 10) => {
 }
 
 let n = 0
-function ans(question_id: string, result: 0 | 2, answered_at: number, extra: Partial<Answer> = {}): Answer {
+function ans(question_id: string, result: 0 | 1 | 2, answered_at: number, extra: Partial<Answer> = {}): Answer {
   return {
     id: `a${n++}`,
     question_id,
@@ -42,6 +42,14 @@ describe('buildProblemRecord', () => {
       ans('1', 2, snap.ts, { mode: 'snapshot', payload: JSON.stringify(snap) }),
     ]
     expect(buildProblemRecord(log)['1']).toMatchObject({ box: 4, dueDate: '2026-10-29' })
+  })
+
+  it('暗唱の「一部」(result 1) はボックスを保ったまま翌日に出す', () => {
+    const log = [
+      ans('anshou:4-0-4', 2, at('2026-10-12'), { mode: 'anshou' }),
+      ans('anshou:4-0-4', 1, at('2026-10-13'), { mode: 'anshou' }),
+    ]
+    expect(buildProblemRecord(log)['anshou:4-0-4']).toMatchObject({ box: 1, dueDate: '2026-10-14' })
   })
 
   it('計算ドリルは復習の対象にしない（今日の解答数には数える）', () => {

@@ -895,3 +895,15 @@ body {
 .drill-step-label { display: block; font-weight: 600; }
 .drill-step-expr { display: block; overflow-wrap: anywhere; }
 .drill-step-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+/* ── 暗唱チェック ── */
+.anshou-prompt { font-weight: 600; }
+.anshou-hint { margin: 10px 0; font-size: 0.88rem; color: var(--ink-2); }
+.anshou-hint-btn { margin: 10px 0; }
+/* 16px 未満だと iPhone で入力時に拡大される */
+.anshou-memo { display: block; width: 100%; margin: 4px 0 16px; font-size: 1rem; line-height: 1.6; resize: vertical; }
+.anshou-text { white-space: pre-wrap; }
+.assess-btn.partial { background: var(--surface); border: 1px solid var(--gold); color: var(--gold); }
+.text-partial { color: var(--gold); }
+.result-item .text-partial { font-weight: 700; font-size: 0.9rem; }
+#anshouAssess .assess-btn { padding: 14px 4px; white-space: nowrap; }
