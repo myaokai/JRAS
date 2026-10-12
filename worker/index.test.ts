@@ -31,7 +31,7 @@ describe('worker', () => {
   })
 
   it('未実装の /api/* は 404', async () => {
-    expect((await call('/api/sync', { DEV_USER: 'dev@example.com' })).status).toBe(404)
+    expect((await call('/api/unknown', { DEV_USER: 'dev@example.com' })).status).toBe(404)
   })
 
   it('/audio/* は index.html にすり替えず 404', async () => {

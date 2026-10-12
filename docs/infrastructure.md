@@ -34,7 +34,7 @@ Cloudflare
 |---|---|
 | 現状 | `wrangler.jsonc` の Worker「jras」が `dist/` を配信している。`index.html` / `sw.js` などは Worker を通し、常に再検証させている（`worker/index.ts`） |
 | 変更点 | `/api/*` と `/audio/*` の振り分けを Worker に足す。`run_worker_first` に `/api/*` と `/audio/*` を加える |
-| デプロイ | Workers Builds（Git 連携）で、`main` へのマージ時に自動で `npm run build` → `npx wrangler deploy` を実行する。main 以外のブランチのビルド（プレビュー）はオフ。テーブル変更が入るようになったら、Deploy command の前に `npx wrangler d1 migrations apply jras-db --remote` を足す。手動で出すときは `npm run build && npx wrangler deploy` |
+| デプロイ | Workers Builds（Git 連携）で、`main` へのマージ時に自動で `npm run build` → `npx wrangler deploy` を実行する。main 以外のブランチのビルド（プレビュー）はオフ。テーブル変更（`migrations/` の追加）を含む PR は、マージの前に `npx wrangler d1 migrations apply jras-db --remote` を手動で実行する（列の追加だけなので、古いコードのままでも動く）。手動で出すときは `npm run build && npx wrangler deploy` |
 
 ### 2. 学習記録：D1「jras-db」
 
@@ -69,6 +69,7 @@ CREATE TABLE settings (
 
 - 過去問の履歴や連続学習日数は、`answers` を集計すれば出せるので、テーブルを分けない。
 - 作成済み（2026-10-12、リージョン APAC、`database_id` は `wrangler.jsonc`）。Worker からは `env.DB` で使う。
+- テーブルは `migrations/0001_init.sql`。本番には 2026-10-12 に適用済み。ローカルは `npx wrangler d1 migrations apply jras-db --local`。
 - マイグレーションは `migrations/` に置き、`wrangler d1 migrations apply` で適用する。
 
 **容量の見積もり**：1日100問を解いて1年で約3.6万行、1行200バイトとして約7MB。無料枠（5GB）に十分収まる。
@@ -82,21 +83,26 @@ CREATE TABLE settings (
 | GET | `/api/me` | ログインしているかの確認（同期ボタンの表示切り替えに使う） |
 
 ```jsonc
-// POST /api/sync リクエスト
-{ "cursor": 1520,                       // 前回受け取った最後の seq
-  "answers": [{ "id": "uuid", "question_id": "R07_kanteishi_001", "mode": "kakomon",
-                "result": 2, "choice": "3", "session_id": "uuid", "answered_at": 1791700000000, "device": "iphone-xxxx" }],
-  "settings": [{ "key": "examDate.tantou", "value": "\"2027-05-09\"", "updated_at": 1791700000000 }] }
+// POST /api/sync リクエスト（どの項目も省略可）
+{ "cursor": 1520,                       // 前回受け取った cursor（最初は 0）
+  "answers": [{ "id": "uuid", "question_id": "R07_kanteishi_001", "mode": "kakomon", "result": 2,
+                "choice": "3", "session_id": "uuid", "answered_at": 1791700000000, "device": "uuid", "payload": null }],
+  "settings": [{ "key": "exam.date", "value": "2027-05-09", "updated_at": 1791700000000 }] }  // value は任意の JSON
 
 // レスポンス
-{ "cursor": 1544,                       // 次回送る seq
-  "answers": [ /* cursor より後の自分のログ（他の端末の分を含む） */ ],
+{ "cursor": 1544,                       // 次回送る値（新しいログがなければ送った値のまま）
+  "more": false,                        // true なら続きがある。cursor を変えてもう一度呼ぶ
+  "answers": [ /* cursor より後の自分のログ（他の端末の分と、今送った分を含む）。送ったときと同じ形 */ ],
   "settings": [ /* 自分の全設定 */ ] }
 ```
 
 - 解答は `INSERT OR IGNORE`（`id` が重複したら無視）なので、再送しても二重にならない。
-- 同期するタイミング：起動時、セット完了時、オンラインに戻ったとき（`online` イベント）、設定画面の「今すぐ同期」。
-- 1回で送る件数に上限（例：500件）を設け、残りは続けて送る。
+- 設定は `updated_at` が保存済みより新しいときだけ上書きする。
+- 上限：1回に送れる解答は500件、返すのは1000件まで（`more`）。1件でも形式が不正なら 400 で、何も保存しない。
+- D1 の無料枠は1回の呼び出しで50クエリまでなので、解答・設定はそれぞれ JSON の配列を1つの文（`json_each`）で書き込む（`worker/sync.ts`）。
+- `GET /api/export` は書き出し v2 と同じ形（`app`・`version`・`exportedAt`・`answers`・`settings`）で返す。設定画面の「データを読み込む」でそのまま読める。
+- 同期するタイミング（2-9）：起動時、セット完了時、オンラインに戻ったとき（`online` イベント）、設定画面の「今すぐ同期」。
+- 端末ごとの設定（端末ID・移行済みフラグ・最終バックアップ日時）は送らない（2-9）。
 
 ### 4. 認証：Cloudflare Access
 
