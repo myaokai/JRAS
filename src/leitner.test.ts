@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isDue, nextEntry } from './leitner'
+import { isDue, nextEntry, partialEntry } from './leitner'
 
 const NOW = new Date(2026, 9, 12, 10, 0).getTime()
 
@@ -23,6 +23,16 @@ describe('leitner', () => {
   it('不正解でボックス0・当日が期限になる', () => {
     const entry = nextEntry({ box: 3, dueDate: '2026-10-20', lastResult: true, ts: 0 }, false, NOW)
     expect(entry).toEqual({ box: 0, dueDate: '2026-10-12', lastResult: false, ts: NOW })
+  })
+
+  it('一部（暗唱）はボックスを変えず、翌日が期限になる', () => {
+    expect(partialEntry({ box: 3, dueDate: '2026-10-12', lastResult: true, ts: 0 }, NOW)).toEqual({
+      box: 3,
+      dueDate: '2026-10-13',
+      lastResult: false,
+      ts: NOW,
+    })
+    expect(partialEntry(undefined, NOW)).toMatchObject({ box: 0, dueDate: '2026-10-13' })
   })
 
   it('記録がない問題と期限が来た問題は出題対象', () => {

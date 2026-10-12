@@ -1,5 +1,5 @@
 import type { Navigate } from '../route'
-import type { QuestionsData } from '../types'
+import type { Chapter } from '../types'
 import { QUIZ_SIZES, type PoolMethod } from '../quizPool'
 import { AppShell } from './layout/AppShell'
 import { ChapterSelector } from './ChapterSelector'
@@ -7,7 +7,11 @@ import { SectionTitle, Segmented } from './ui'
 
 interface Props {
   navigate: Navigate
-  questionsData: QuestionsData
+  // 穴埋めと暗唱チェックで共用する
+  title: string
+  chapters: Record<string, Chapter>
+  // 出題対象（章・節ごとの件数をツリーに出す）
+  items: { chapter: number; section: number }[]
   selectedSections: Set<string>
   onSectionsChange: (next: Set<string>) => void
   method: PoolMethod
@@ -30,7 +34,7 @@ export function AnaumeSelectScreen(props: Props) {
   const count = Math.min(poolCount, props.size)
   return (
     <AppShell
-      title="基準 穴埋め"
+      title={props.title}
       onBack={() => navigate({ name: 'study' })}
       navigate={navigate}
       screenId="startScreen"
@@ -51,8 +55,8 @@ export function AnaumeSelectScreen(props: Props) {
         onChange={props.onSizeChange}
       />
       <ChapterSelector
-        chapters={props.questionsData.chapters}
-        questions={props.questionsData.questions}
+        chapters={props.chapters}
+        questions={props.items}
         selected={props.selectedSections}
         onChange={props.onSectionsChange}
       />

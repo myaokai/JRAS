@@ -148,8 +148,33 @@ function validatePastExams() {
   console.log(`past_exams: ${index.length}ファイル・${globalIds.size}問を検証しました（解説あり ${explained}問）`)
 }
 
+// 暗唱チェック（scripts/extract_anshou.py で kijun.json から作る）
+function validateAnshou() {
+  const { units } = readJson('anshou.json')
+  const kijun = readJson('kijun.json')
+  const seenIds = new Set()
+  for (const u of units) {
+    const label = `anshou.json ${u.id}`
+    if (!/^anshou:\d+-\d+-\d+$/.test(u.id)) errors.push(`${label}: id の形式が不正です`)
+    if (seenIds.has(u.id)) errors.push(`${label}: id が重複しています`)
+    seenIds.add(u.id)
+    for (const key of ['title', 'prompt', 'text', 'context']) {
+      if (typeof u[key] !== 'string' || u[key].trim() === '') errors.push(`${label}: ${key} が空です`)
+    }
+    if (u.id !== `anshou:${u.chapter}-${u.section}-${u.id.split('-').at(-1)}`) errors.push(`${label}: id と章・節が一致しません`)
+    // 本文は基準そのもの（該当する節の本文に含まれる）
+    const chapter = kijun[String(u.chapter)]
+    const source = u.section === 0 ? chapter?.intro : chapter?.sections[String(u.section)]?.text
+    if (!source || !source.includes(u.text)) errors.push(`${label}: 本文が kijun.json の第${u.chapter}章${u.section}節に見つかりません`)
+  }
+  const titles = new Set(units.map((u) => u.title))
+  if (titles.size !== units.length) errors.push('anshou.json: 同じお題が複数あります')
+  console.log(`anshou.json: ${units.length}件を検証しました`)
+}
+
 validateCoverage(validateQuestionsJson())
 validatePastExams()
+validateAnshou()
 
 if (errors.length > 0) {
   console.error(`\n✗ ${errors.length}件のエラーが見つかりました:`)

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AnaumeQuestion, ExamMeta, KakomonQuestion, KijunData, QuestionsData } from './types'
-import { isKakomonQuestion } from './types'
-import { loadExamData, loadExamIndex, loadKijunData, loadQuestionsData } from './data/loadData'
+import type { AnaumeQuestion, AnshouUnit, ExamMeta, KakomonQuestion, KijunData, QuestionsData } from './types'
+import { isAnshouUnit, isKakomonQuestion } from './types'
+import { loadAnshouData, loadExamData, loadExamIndex, loadKijunData, loadQuestionsData } from './data/loadData'
 import { useStudyLog } from './hooks/useStudyLog'
 import { useHashRoute } from './route'
 import { useSession } from './session'
@@ -20,15 +20,16 @@ import { shuffled } from './shuffle'
 import { QUESTIONS_PER_QUIZ } from './constants'
 import { examIdOf } from './store/replay'
 import { SETTING_KEYS } from './store/types'
-import { anaumePool, inExamOrder, pickRandom, sectionKey, type PoolMethod } from './quizPool'
+import { anaumePool, anshouPool, inExamOrder, pickRandom, sectionKey, splitDueIds, type PoolMethod } from './quizPool'
+import type { AnswerResult } from './store/types'
 import { EMPTY_RESPONSE, type QuizResponse } from './components/QuizScreen'
 import type { ResultItem } from './components/ResultScreen'
 import type { KakomonFormat, KakomonTab } from './components/KakomonSelectScreen'
 
-type QuizItem = AnaumeQuestion | KakomonQuestion
+type QuizItem = AnaumeQuestion | KakomonQuestion | AnshouUnit
 
 interface Quiz {
-  mode: 'anaume' | 'kakomon'
+  mode: 'anaume' | 'kakomon' | 'anshou'
   questions: QuizItem[]
   index: number
   responses: QuizResponse[]
@@ -41,6 +42,7 @@ const LABEL_CHARS = 24
 
 function questionLabel(q: QuizItem): string {
   if (isKakomonQuestion(q)) return `${q._examLabel ?? ''} 問${q.number}`
+  if (isAnshouUnit(q)) return q.title
   const plain = q.text.replace(/\{\{|\}\}/g, '')
   return plain.length > LABEL_CHARS ? `${plain.slice(0, LABEL_CHARS)}…` : plain
 }
@@ -50,11 +52,16 @@ function App() {
   const [questionsData, setQuestionsData] = useState<QuestionsData | null>(null)
   const [kijunData, setKijunData] = useState<KijunData | null>(null)
   const [examIndex, setExamIndex] = useState<ExamMeta[]>([])
+  const [anshouUnits, setAnshouUnits] = useState<AnshouUnit[]>([])
 
   // 穴埋めの出題条件
   const [selectedSections, setSelectedSections] = useState<Set<string>>(new Set())
   const [method, setMethod] = useState<PoolMethod>('all')
   const [quizSize, setQuizSize] = useState<number>(QUESTIONS_PER_QUIZ)
+  // 暗唱チェックの出題条件
+  const [anshouSections, setAnshouSections] = useState<Set<string>>(new Set())
+  const [anshouMethod, setAnshouMethod] = useState<PoolMethod>('all')
+  const [anshouSize, setAnshouSize] = useState<number>(QUESTIONS_PER_QUIZ)
   // 過去問の出題条件
   const [kakomonTab, setKakomonTab] = useState<KakomonTab>('year')
   const [kakomonFormat, setKakomonFormat] = useState<KakomonFormat>('random')
@@ -79,6 +86,13 @@ function App() {
       .then(setKijunData)
       .catch((e) => console.error('教科書データの読み込みに失敗しました', e))
 
+    loadAnshouData()
+      .then((data) => {
+        setAnshouUnits(data.units)
+        setAnshouSections(new Set(data.units.map((u) => sectionKey(u.chapter, u.section))))
+      })
+      .catch((e) => console.error('暗唱チェックのデータの読み込みに失敗しました', e))
+
     loadExamIndex().then((exams) => {
       setExamIndex(exams)
       setSelectedExams(new Set(exams.map((e) => e.id)))
@@ -97,12 +111,17 @@ function App() {
   }, [route.name, drill])
 
   const examIds = useMemo(() => new Set(examIndex.map((e) => e.id)), [examIndex])
-  const kakomonWrongIds = useMemo(() => dueIds.filter((id) => examIds.has(examIdOf(id))), [dueIds, examIds])
-  const anaumeReviewIds = useMemo(() => dueIds.filter((id) => !examIds.has(examIdOf(id))), [dueIds, examIds])
+  const dueByMode = useMemo(() => splitDueIds(dueIds, (id) => examIds.has(examIdOf(id))), [dueIds, examIds])
+  const { kakomon: kakomonWrongIds, anaume: anaumeReviewIds, anshou: anshouReviewIds } = dueByMode
 
   const anaumeCandidates = useMemo(
     () => (questionsData ? anaumePool(questionsData.questions, selectedSections, method, problemRecord, today) : []),
     [questionsData, selectedSections, method, problemRecord, today],
+  )
+
+  const anshouCandidates = useMemo(
+    () => anshouPool(anshouUnits, anshouSections, anshouMethod, problemRecord, today),
+    [anshouUnits, anshouSections, anshouMethod, problemRecord, today],
   )
 
   const studied = useMemo(() => log.answers.filter((a) => a.mode !== 'snapshot'), [log.answers])
@@ -135,6 +154,13 @@ function App() {
     if (!questionsData) return
     const ids = new Set(anaumeReviewIds)
     beginQuiz('anaume', pickRandom(questionsData.questions.filter((q) => ids.has(String(q.id))), QUESTIONS_PER_QUIZ))
+  }
+
+  const startAnshouQuiz = () => beginQuiz('anshou', pickRandom(anshouCandidates, anshouSize))
+
+  const startAnshouReview = () => {
+    const ids = new Set(anshouReviewIds)
+    beginQuiz('anshou', pickRandom(anshouUnits.filter((u) => ids.has(u.id)), QUESTIONS_PER_QUIZ))
   }
 
   const loadQuestionsFromExams = async (exams: ExamMeta[]): Promise<KakomonQuestion[]> => {
@@ -186,6 +212,12 @@ function App() {
     })
   }
 
+  // 暗唱は3段階（0=書けなかった 1=一部 2=書けた）で記録する
+  const recordAnshou = (unitId: string, grade: AnswerResult) => {
+    if (!quiz) return
+    recordAnswer({ question_id: unitId, mode: 'anshou', result: grade, session_id: quiz.sessionId })
+  }
+
   // 計算ドリルは1問ずつ記録する。復習の対象にはしない（buildProblemRecord で除外）
   const recordDrill = (typeId: string, correct: boolean, input: string | null) => {
     if (!drill) return
@@ -215,6 +247,8 @@ function App() {
           dailyGoal={log.dailyGoal}
           anaumeReviewCount={anaumeReviewIds.length}
           kakomonReviewCount={kakomonWrongIds.length}
+          anshouReviewCount={anshouReviewIds.length}
+          onStartAnshouReview={startAnshouReview}
           onStartAnaumeReview={startAnaumeReview}
           onStartKakomonReview={() => void startKakomonReview()}
         />
@@ -225,6 +259,7 @@ function App() {
           {...common}
           anaumeReviewCount={anaumeReviewIds.length}
           kakomonReviewCount={kakomonWrongIds.length}
+          anshouReviewCount={anshouReviewIds.length}
           weekCount={weekCount}
           totalCount={studied.length}
         />
@@ -233,7 +268,9 @@ function App() {
       return (
         <AnaumeSelectScreen
           {...common}
-          questionsData={questionsData}
+          title="基準 穴埋め"
+          chapters={questionsData.chapters}
+          items={questionsData.questions}
           selectedSections={selectedSections}
           onSectionsChange={setSelectedSections}
           method={method}
@@ -242,6 +279,23 @@ function App() {
           onSizeChange={setQuizSize}
           poolCount={anaumeCandidates.length}
           onStart={startAnaumeQuiz}
+        />
+      )
+    case 'study-anshou':
+      return (
+        <AnaumeSelectScreen
+          {...common}
+          title="暗唱チェック"
+          chapters={questionsData.chapters}
+          items={anshouUnits}
+          selectedSections={anshouSections}
+          onSectionsChange={setAnshouSections}
+          method={anshouMethod}
+          onMethodChange={setAnshouMethod}
+          size={anshouSize}
+          onSizeChange={setAnshouSize}
+          poolCount={anshouCandidates.length}
+          onStart={startAnshouQuiz}
         />
       )
     case 'study-kakomon':
@@ -285,6 +339,7 @@ function App() {
           onNext={handleNext}
           onAnaumeAssessed={(id, correct) => recordResult(String(id), correct, null)}
           onKakomonAnswered={(id, choice, correct) => recordResult(id, correct, choice)}
+          onAnshouAssessed={recordAnshou}
         />
       ) : null
     case 'result':
@@ -297,6 +352,7 @@ function App() {
               id: String(q.id),
               label: questionLabel(q),
               correct: quiz.responses[i].correct === true,
+              partial: quiz.responses[i].grade === 1,
               dueDate: problemRecord[String(q.id)]?.dueDate ?? null,
             }),
           )}

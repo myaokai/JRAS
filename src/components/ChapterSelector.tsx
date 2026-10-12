@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { AnaumeQuestion, Chapter } from '../types'
+import type { Chapter } from '../types'
 import { sectionKey } from '../quizPool'
 
 interface Props {
   chapters: Record<string, Chapter>
-  questions: AnaumeQuestion[]
+  questions: SectionItem[]
   // 選択中の節（sectionKey 形式）
   selected: Set<string>
   onChange: (next: Set<string>) => void
 }
 
+// 章・節が分かる出題対象（穴埋めの問題、暗唱の単位）
+type SectionItem = { chapter: number; section: number }
+
 // 問題のある節を章ごとにまとめる
-function useTree(chapters: Record<string, Chapter>, questions: AnaumeQuestion[]) {
+function useTree(chapters: Record<string, Chapter>, questions: SectionItem[]) {
   return useMemo(() => {
     const counts: Record<string, number> = {}
     questions.forEach((q) => {

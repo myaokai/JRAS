@@ -1,4 +1,4 @@
-import type { ExamData, ExamMeta, KijunData, QuestionsData } from '../types'
+import type { AnshouData, ExamData, ExamMeta, KijunData, QuestionsData } from '../types'
 
 export async function loadQuestionsData(): Promise<QuestionsData> {
   const res = await fetch('./questions.json')
@@ -7,6 +7,11 @@ export async function loadQuestionsData(): Promise<QuestionsData> {
 
 export async function loadKijunData(): Promise<KijunData> {
   const res = await fetch('./kijun.json')
+  return res.json()
+}
+
+export async function loadAnshouData(): Promise<AnshouData> {
+  const res = await fetch('./anshou.json')
   return res.json()
 }
 

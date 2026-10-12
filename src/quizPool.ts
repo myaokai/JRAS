@@ -1,4 +1,4 @@
-import type { AnaumeQuestion, KakomonQuestion, ProblemRecord } from './types'
+import type { AnaumeQuestion, AnshouUnit, KakomonQuestion, ProblemRecord } from './types'
 import { isDue } from './leitner'
 import { shuffled } from './shuffle'
 
@@ -29,6 +29,26 @@ export function anaumePool(
   return questions.filter(
     (q) => sections.has(sectionKey(q.chapter, q.section)) && matchesMethod(record, String(q.id), method, today),
   )
+}
+
+export function anshouPool(
+  units: AnshouUnit[],
+  sections: Set<string>,
+  method: PoolMethod,
+  record: ProblemRecord,
+  today: string,
+): AnshouUnit[] {
+  return units.filter((u) => sections.has(sectionKey(u.chapter, u.section)) && matchesMethod(record, u.id, method, today))
+}
+
+// 復習期限の来た問題をモードごとに分ける。穴埋めは数字だけの id、暗唱は "anshou:" で始まる id、
+// 過去問は試験ID（examIdOf）が過去問の一覧にある id
+export function splitDueIds(dueIds: string[], isExamQuestion: (id: string) => boolean) {
+  return {
+    anaume: dueIds.filter((id) => /^\d+$/.test(id)),
+    kakomon: dueIds.filter((id) => isExamQuestion(id)),
+    anshou: dueIds.filter((id) => id.startsWith('anshou:')),
+  }
 }
 
 export function pickRandom<T>(pool: T[], size: number): T[] {

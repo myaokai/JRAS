@@ -15,6 +15,11 @@ export function nextEntry(
   return { box, dueDate, lastResult: correct, ts: now }
 }
 
+// 一部だけ再現できた（暗唱チェックの「一部」）。ボックスは上げも下げもせず、翌日にもう一度出す
+export function partialEntry(prev: ProblemRecordEntry | undefined, now: number = Date.now()): ProblemRecordEntry {
+  return { box: prev?.box ?? 0, dueDate: addDays(dateStrOf(now), 1), lastResult: false, ts: now }
+}
+
 export function isDue(entry: ProblemRecordEntry | undefined, today: string = todayStr()): boolean {
   return !entry || entry.dueDate <= today
 }
