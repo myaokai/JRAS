@@ -14,10 +14,11 @@ function byTime(a: Answer, b: Answer): number {
 }
 
 // ログを時刻順に再生して、問題ごとの復習状態（ライトナー方式）を求める。
-// snapshot は移行前の状態をそのまま初期値にする。
+// snapshot は移行前の状態をそのまま初期値にする。計算ドリルは毎回数値が変わるので復習の対象にしない。
 export function buildProblemRecord(answers: Answer[]): ProblemRecord {
   const record: ProblemRecord = {}
   for (const a of [...answers].sort(byTime)) {
+    if (a.mode === 'drill') continue
     if (a.mode === 'snapshot') {
       if (a.payload) record[a.question_id] = JSON.parse(a.payload) as ProblemRecordEntry
     } else {

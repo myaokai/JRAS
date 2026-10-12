@@ -6,9 +6,10 @@ export type Route =
   | { name: 'study' }
   | { name: 'study-anaume' }
   | { name: 'study-kakomon' }
+  | { name: 'study-drill' }
   | { name: 'quiz' }
   | { name: 'result' }
-  // fromQuiz: 出題中の基準リンクから開いた（戻るボタンで出題に戻る）
+  // fromQuiz: 出題中・計算ドリルの基準リンクから開いた（戻るボタンで問題に戻る）
   | { name: 'textbook'; chapterId?: string; sectionId?: string; fromQuiz?: boolean }
   | { name: 'records' }
   | { name: 'settings' }
@@ -24,6 +25,7 @@ export function parseHash(hash: string): Route {
     case 'study':
       if (parts[1] === 'anaume') return { name: 'study-anaume' }
       if (parts[1] === 'kakomon') return { name: 'study-kakomon' }
+      if (parts[1] === 'drill') return { name: 'study-drill' }
       return { name: 'study' }
     case 'quiz':
       return { name: 'quiz' }
@@ -53,6 +55,8 @@ export function toHash(route: Route): string {
       return '#/study/anaume'
     case 'study-kakomon':
       return '#/study/kakomon'
+    case 'study-drill':
+      return '#/study/drill'
     case 'textbook':
       return ['#/textbook', route.chapterId, route.sectionId]
         .filter((p) => p !== undefined)
@@ -68,6 +72,7 @@ export function tabOf(route: Route): Tab {
     case 'study':
     case 'study-anaume':
     case 'study-kakomon':
+    case 'study-drill':
     case 'quiz':
     case 'result':
       return 'study'

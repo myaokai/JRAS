@@ -14,6 +14,8 @@ import { ResultScreen } from './components/ResultScreen'
 import { TextbookScreen } from './components/TextbookScreen'
 import { RecordsScreen } from './components/RecordsScreen'
 import { SettingsScreen } from './components/SettingsScreen'
+import { DrillScreen, newDrill, type DrillState } from './components/DrillScreen'
+import { DRILL_TYPES } from './drill/drillTypes'
 import { shuffled } from './shuffle'
 import { QUESTIONS_PER_QUIZ } from './constants'
 import { examIdOf } from './store/replay'
@@ -59,6 +61,7 @@ function App() {
   const [selectedExams, setSelectedExams] = useState<Set<string>>(new Set())
   const [realExam, setRealExam] = useState('')
   const [quiz, setQuiz] = useState<Quiz | null>(null)
+  const [drill, setDrill] = useState<DrillState | null>(null)
 
   const log = useStudyLog()
   const { session, refresh: refreshSession } = useSession()
@@ -87,6 +90,11 @@ function App() {
   useEffect(() => {
     if (!quiz && (route.name === 'quiz' || route.name === 'result')) navigate({ name: 'study' }, { replace: true })
   }, [quiz, route.name, navigate])
+
+  // 計算ドリルは初めて開いたときに1問目を作る。以後は教科書へ行って戻っても同じ問題のまま
+  useEffect(() => {
+    if (route.name === 'study-drill' && !drill) setDrill(newDrill(DRILL_TYPES[0].id))
+  }, [route.name, drill])
 
   const examIds = useMemo(() => new Set(examIndex.map((e) => e.id)), [examIndex])
   const kakomonWrongIds = useMemo(() => dueIds.filter((id) => examIds.has(examIdOf(id))), [dueIds, examIds])
@@ -178,6 +186,12 @@ function App() {
     })
   }
 
+  // 計算ドリルは1問ずつ記録する。復習の対象にはしない（buildProblemRecord で除外）
+  const recordDrill = (typeId: string, correct: boolean, input: string | null) => {
+    if (!drill) return
+    recordAnswer({ question_id: `drill:${typeId}`, mode: 'drill', result: correct ? 2 : 0, choice: input, session_id: drill.sessionId })
+  }
+
   const retryWrong = () => {
     if (!quiz) return
     const wrong = quiz.questions.filter((_, i) => quiz.responses[i].correct === false)
@@ -248,6 +262,16 @@ function App() {
           onStart={() => void startKakomonQuiz()}
         />
       )
+    case 'study-drill':
+      return drill ? (
+        <DrillScreen
+          {...common}
+          kijunData={kijunData}
+          state={drill}
+          onChange={setDrill}
+          onAnswered={recordDrill}
+        />
+      ) : null
     case 'quiz':
       return quiz ? (
         <QuizScreen
@@ -289,7 +313,7 @@ function App() {
           kijunData={kijunData}
           chapterId={route.chapterId}
           sectionId={route.sectionId}
-          fromQuiz={route.fromQuiz === true && quiz !== null}
+          fromQuiz={route.fromQuiz === true && (quiz !== null || drill !== null)}
         />
       )
     case 'records':
