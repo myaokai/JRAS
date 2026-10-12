@@ -16,5 +16,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["worker"],
-  "exclude": ["worker/**/*.test.ts"]
+  "exclude": ["worker/**/*.test.ts", "worker/**/*.test-utils.ts"]
 }

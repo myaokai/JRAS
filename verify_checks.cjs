@@ -30,8 +30,27 @@ function dayStr(offsetDays) {
 }
 const yesterday = () => dayStr(-1);
 
-async function newPage(browser, errors) {
+// /api/sync の代わり（vite preview には API がない）。サーバーを共有すると端末をまたいだ同期を確かめられる
+function newSyncServer() {
+  return { answers: [], settings: new Map() };
+}
+async function fakeSync(context, server = newSyncServer()) {
+  await context.route('**/api/sync', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    for (const a of body.answers || []) if (!server.answers.some((x) => x.id === a.id)) server.answers.push(a);
+    for (const st of body.settings || []) {
+      const cur = server.settings.get(st.key);
+      if (!cur || st.updated_at > cur.updated_at) server.settings.set(st.key, st);
+    }
+    const cursor = body.cursor || 0;
+    await route.fulfill({ json: { cursor: server.answers.length, more: false, answers: server.answers.slice(cursor), settings: [...server.settings.values()] } });
+  });
+  return server;
+}
+
+async function newPage(browser, errors, server) {
   const context = await browser.newContext(MOBILE);
+  await fakeSync(context, server);
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -193,6 +212,7 @@ async function playAnaume(page) {
     {
       // Service Worker を止め、過去問データの差し替え（解説の確認用）が効くようにする
       const context = await browser.newContext({ ...MOBILE, serviceWorkers: 'block' });
+      await fakeSync(context);
       const page = await context.newPage();
       page.on('pageerror', (e) => errors.push(e.message));
       page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -303,6 +323,7 @@ async function playAnaume(page) {
       const page = await context.newPage();
       page.on('pageerror', (e) => errors.push(e.message));
       // Access のログイン画面へのリダイレクトを再現する
+      await page.route('**/api/sync', (route) => route.fulfill({ status: 302, headers: { Location: 'https://example.cloudflareaccess.com/cdn-cgi/access/login' } }));
       await page.route('**/api/me', (route) => route.fulfill({ status: 302, headers: { Location: 'https://example.cloudflareaccess.com/cdn-cgi/access/login' } }));
       await page.route('**/api/login', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="loginPage">login</p>' }));
       await page.goto(BASE_URL + '/#/');
@@ -312,10 +333,40 @@ async function playAnaume(page) {
       await page.click('[data-tab=settings]');
       await page.waitForSelector('#settingsScreen');
       check('ログイン切れ: 設定に状態が出る', (await text(page, '#serverStatus')).includes('ログインが切れています'));
+      check('ログイン切れ: 同期できない理由が出る', (await text(page, '#syncStatus')).includes('ログインが切れている'));
       await page.click('#reloginBtn');
       await page.waitForSelector('#loginPage');
       check('再ログイン: /api/login を開く', page.url().endsWith('/api/login'), page.url());
       await context.close();
+    }
+
+    // ── 10. 同期：スマホで解いた記録が PC に届く ──
+    {
+      const server = newSyncServer();
+      const phone = await newPage(browser, errors, server);
+      await phone.page.goto(BASE_URL + '/#/study/anaume');
+      await phone.page.waitForSelector('#startScreen');
+      await phone.page.click('#startBtn');
+      await phone.page.waitForSelector('#quizScreen');
+      await playAnaume(phone.page);
+      await phone.page.waitForSelector('#resultScreen');
+      await phone.page.goto(BASE_URL + '/#/settings');
+      await phone.page.waitForSelector('#settingsScreen');
+      await phone.page.waitForFunction(() => document.querySelector('#pendingCount')?.textContent === '0件');
+      check('同期: セット完了後に未送信が0件になる', server.answers.length === 10, `${server.answers.length}件`);
+      check('同期: 最終同期の時刻が出る', !(await text(phone.page, '#lastSynced')).includes('未実施'));
+      await shot(phone.page, '15-settings-sync');
+      await phone.context.close();
+
+      const pc = await newPage(browser, errors, server);
+      await pc.page.goto(BASE_URL + '/#/');
+      await pc.page.waitForFunction(() => document.querySelector('#todayCount')?.textContent.trim().startsWith('10'));
+      check('同期: 別の端末を開くと今日の解答数が届く', true);
+      await pc.page.click('[data-tab=settings]');
+      await pc.page.click('#syncNowBtn');
+      await pc.page.waitForFunction(() => document.querySelector('#syncStatus')?.textContent === '同期しました');
+      check('同期: 今すぐ同期が使える', true);
+      await pc.context.close();
     }
 
     check('コンソールエラーがない', errors.length === 0, errors.join(' | '));

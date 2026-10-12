@@ -1,30 +1,25 @@
-# 2-8 同期のサーバー側（ブランチ `feat/stage2-8-sync-server`）
+# 2-9 同期の端末側（ブランチ `feat/stage2-9-sync-client`）
 
-設計: [docs/infrastructure.md](../docs/infrastructure.md) 2・3節 / 認証は Access（0-7 で決定）
+設計: [docs/infrastructure.md](../docs/infrastructure.md) 3節
 
 ## 作業項目
-- [x] `migrations/0001_init.sql`：`answers`（seq・id UNIQUE・user …）と `settings`（user, key 主キー）
-- [x] `worker/sync.ts`：入力の検証（件数上限500、型、mode、result）
-- [x] `POST /api/sync`：解答は `INSERT OR IGNORE`、設定は updated_at が新しいときだけ上書き。cursor より後の自分のログ（上限1000件、`more`）と全設定を返す
-- [x] `GET /api/export`：自分の全データを書き出し v2 の形式で返す（設定画面の読み込みでそのまま使える）
-- [x] 結合テスト：node:sqlite で D1 を模して、実際の SQL を流す
-  - 同じ解答を2回送っても1件
-  - 別の端末IDで送ったログが cursor 以降として返る
-  - 他の利用者のログは返らない
-  - 設定は後から書いた方が残る
-  - 不正な入力は 400
-- [x] 本番 D1 にマイグレーションを適用（`wrangler d1 migrations apply jras-db --remote`）
-- [x] docs（infrastructure・roadmap）
+- [x] `src/store/sync.ts`：未送信の解答を500件ずつ送る、受け取った解答を足す、設定は新しい方を採用、cursor と最終同期時刻は端末ごとの設定
+- [x] 同期のタイミング：起動時・オンライン復帰時・セット完了時・読み込み後・手動（同時に1つだけ）
+- [x] 設定画面：同期の状態・最終同期・未送信の件数・「今すぐ同期」・ログイン切れなら再ログイン
+- [x] 結合テスト（端末2台＋本物の Worker と D1 相当）と画面の確認
 
 ## レビュー
 
-**結果**：`npm test` 85件（同期の結合テスト14件を追加）、`tsc -b` が通る。
-- 結合テストは node:sqlite で D1 を模し、本物のマイグレーションと SQL を流す。完了条件の「同じ解答を2回送っても1件」「別の端末IDで送ったログが cursor 以降として返る」を含む。
-- `wrangler dev` のローカル D1 でも確認した：500件の一括送信、重複の無視、古い設定で上書きされないこと、書き出し。
-- 本番 D1 に `0001_init.sql` を適用済み（answers・settings・索引）。
+**結果**：`npm test` 91件、`tsc -b`、`npm run build`、`verify_checks.cjs` 54/54 が通る。
+- 結合テスト（`worker/sync.e2e.test.ts`）：fake-indexeddb の端末2台を、本物の Worker（`/api/sync`）と node:sqlite の D1 につないで確かめた。
+  - スマホで解いた記録が PC に届き、復習状態が一致する
+  - オフラインで失敗した分は未送信のまま残り、次の接続で送られる
+  - 2回目以降は送り直さず、新しい分だけを受け取る
+  - 520件を分けて送れる
+  - 設定は新しい方を採用し、端末IDなど端末ごとの設定は送らない
+  - ログイン切れは expired として失敗する
+- 画面の確認：セット完了後に未送信が0件になる。別のブラウザを開くと今日の解答数が届く。「今すぐ同期」が使える。ログイン切れのときは、同期できない理由が出る。
 
-**設計から変えた点**
-- D1 の無料枠（1回の呼び出しで50クエリまで）に収めるため、1件ずつの INSERT ではなく `json_each` で1文にまとめた。
-- 設定の value は JSON 文字列ではなく、任意の JSON 値のまま送受信する（端末の IndexedDB と同じ形）。
-- レスポンスに `more` を足した（1000件を超えるときの続き）。
-- マイグレーションは Workers Builds に組み込まず、テーブル変更を含む PR のマージ前に手動で適用する。
+**注意**
+- 実機の2台（iPhone と PC）での確認はまだ。本番は Access で保護しているので、利用者が確かめる。
+- 設定画面の「1日の目標」の入力欄は、同期で値が変わっても、画面を開き直すまで古い値を表示する。
