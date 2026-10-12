@@ -40,11 +40,16 @@ export const SETTING_KEYS = {
   lastBackupAt: 'backup.lastExportedAt',
   examDate: 'exam.date',
   dailyGoal: 'goal.daily',
+  // 同期（2-9）。サーバーから受け取った最後の位置と、最後に同期できた時刻
+  syncCursor: 'sync.cursor',
+  lastSyncedAt: 'sync.lastSyncedAt',
 } as const
 
-// 端末ごとの設定。書き出し・読み込みの対象にしない
+// 端末ごとの設定。書き出し・読み込み・同期の対象にしない
 export const DEVICE_LOCAL_KEYS: string[] = [
   SETTING_KEYS.deviceId,
   SETTING_KEYS.migratedV1,
   SETTING_KEYS.lastBackupAt,
+  SETTING_KEYS.syncCursor,
+  SETTING_KEYS.lastSyncedAt,
 ]

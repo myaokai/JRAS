@@ -157,6 +157,8 @@ function App() {
     if (quiz.index + 1 >= quiz.questions.length) {
       // 結果画面から「戻る」で解き終えた問題に戻らないよう、履歴を置き換える
       navigate({ name: 'result' }, { replace: true })
+      // セットを解き終えたら同期する（失敗しても次の機会に送られる）
+      void log.syncNow()
     } else {
       setQuiz({ ...quiz, index: quiz.index + 1 })
     }
@@ -307,6 +309,10 @@ function App() {
           {...common}
           session={session}
           onRefreshSession={() => void refreshSession()}
+          syncStatus={log.syncStatus}
+          lastSyncedAt={log.lastSyncedAt}
+          pendingCount={log.pendingCount}
+          onSyncNow={() => void log.syncNow()}
           lastBackupAt={log.lastBackupAt}
           examDate={log.examDate}
           dailyGoal={log.dailyGoal}

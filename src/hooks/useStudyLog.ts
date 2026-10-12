@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addAnswer, getDb, importRecords, initStore, putSetting, type StoreSnapshot } from '../store/store'
 import { buildHabit, buildKakomonHistory, buildProblemRecord } from '../store/replay'
 import { SETTING_KEYS, type Answer, type AnswerMode, type AnswerResult, type LegacyHabit, type Setting } from '../store/types'
 import { createBackup, parseBackup } from '../backup'
+import { SyncError, syncOnce, type SyncFailure, type SyncResult } from '../store/sync'
 import { isDue } from '../leitner'
 import { todayStr } from '../date'
 import { DAILY_GOAL } from '../habit'
@@ -13,6 +14,21 @@ export interface AnswerInput {
   result: AnswerResult
   choice?: string | null
   session_id?: string | null
+}
+
+export type SyncStatus = { state: 'idle' | 'syncing' | 'ok' } | { state: SyncFailure; message: string }
+
+// 同期の結果を画面の状態に反映する。同期中に解いた分（DB への保存が終わっていないもの）を消さないよう、差分だけを当てる
+function applySync(prev: StoreSnapshot, result: SyncResult): StoreSnapshot {
+  const sent = new Set(result.sentIds)
+  const have = new Set(prev.answers.map((a) => a.id))
+  return {
+    answers: [
+      ...prev.answers.map((a) => (sent.has(a.id) ? { ...a, synced: 1 as const } : a)),
+      ...result.received.filter((a) => !have.has(a.id)),
+    ],
+    settings: { ...prev.settings, ...Object.fromEntries(result.settings.map((s) => [s.key, s])) },
+  }
 }
 
 // StrictMode で effect が2回走っても、移行（端末IDの採番を含む）を1回にする
@@ -38,6 +54,41 @@ export function useStudyLog() {
       alive = false
     }
   }, [])
+
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({ state: 'idle' })
+  const syncing = useRef<Promise<void> | null>(null)
+
+  // 同時に1つだけ走らせる。失敗しても未送信の解答は残り、次の同期で送られる
+  const syncNow = useCallback(() => {
+    syncing.current ??= (async () => {
+      setSyncStatus({ state: 'syncing' })
+      try {
+        const result = await syncOnce(await getDb())
+        setSnapshot((prev) => prev && applySync(prev, result))
+        setSyncStatus({ state: 'ok' })
+      } catch (e) {
+        if (e instanceof SyncError) {
+          setSyncStatus({ state: e.kind, message: e.message })
+        } else {
+          console.error('同期に失敗しました', e)
+          setSyncStatus({ state: 'error', message: '同期に失敗しました' })
+        }
+      } finally {
+        syncing.current = null
+      }
+    })()
+    return syncing.current
+  }, [])
+
+  // 起動時（記録を読み込んだ後）と、オンラインに戻ったときに同期する
+  const loaded = snapshot !== null
+  useEffect(() => {
+    if (!loaded || error) return
+    void syncNow()
+    const onOnline = () => void syncNow()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [loaded, error, syncNow])
 
   const answers = useMemo(() => snapshot?.answers ?? [], [snapshot])
   const settings = useMemo(() => snapshot?.settings ?? {}, [snapshot])
@@ -79,6 +130,8 @@ export function useStudyLog() {
   const habit = useMemo(() => buildHabit(answers, legacyHabit, today), [answers, legacyHabit, today])
   const history = useMemo(() => buildKakomonHistory(answers), [answers])
   const lastBackupAt = (settings[SETTING_KEYS.lastBackupAt]?.value as number | undefined) ?? null
+  const lastSyncedAt = (settings[SETTING_KEYS.lastSyncedAt]?.value as number | undefined) ?? null
+  const pendingCount = useMemo(() => answers.filter((a) => a.synced === 0).length, [answers])
   const examDate = (settings[SETTING_KEYS.examDate]?.value as string | undefined) || null
   const dailyGoal = (settings[SETTING_KEYS.dailyGoal]?.value as number | undefined) ?? DAILY_GOAL
 
@@ -106,9 +159,10 @@ export function useStudyLog() {
       const parsed = parseBackup(text, device)
       const next = await importRecords(await getDb(), parsed.answers, parsed.settings)
       setSnapshot(next)
+      void syncNow()
       return parsed.answers.length
     },
-    [device],
+    [device, syncNow],
   )
 
   return {
@@ -121,6 +175,10 @@ export function useStudyLog() {
     habit,
     history,
     lastBackupAt,
+    lastSyncedAt,
+    pendingCount,
+    syncStatus,
+    syncNow,
     examDate,
     dailyGoal,
     today,

@@ -4,12 +4,17 @@ import { BackupError, backupFileName, type BackupV2 } from '../backup'
 import { dateStrOf, todayStr } from '../date'
 import { AppShell } from './layout/AppShell'
 import { relogin, type SessionState } from '../session'
+import type { SyncStatus } from '../hooks/useStudyLog'
 import { Card, SectionTitle } from './ui'
 
 interface Props {
   navigate: Navigate
   session: SessionState
   onRefreshSession: () => void
+  syncStatus: SyncStatus
+  lastSyncedAt: number | null
+  pendingCount: number
+  onSyncNow: () => void
   lastBackupAt: number | null
   examDate: string | null
   dailyGoal: number
@@ -23,12 +28,38 @@ const BACKUP_WARN_DAYS = 30
 const GOAL_MIN = 1
 const GOAL_MAX = 200
 
+function syncFailed(s: SyncStatus): boolean {
+  return s.state === 'offline' || s.state === 'expired' || s.state === 'error'
+}
+
+function syncStatusText(s: SyncStatus): string {
+  switch (s.state) {
+    case 'idle':
+      return 'まだ同期していません'
+    case 'syncing':
+      return '同期中…'
+    case 'ok':
+      return '同期しました'
+    case 'offline':
+      return 'オフラインのため同期できません。接続が戻ると自動で送ります'
+    case 'expired':
+      return 'ログインが切れているため同期できません'
+    case 'error':
+      return `同期できません：${s.message}`
+  }
+}
+
+function formatDateTime(ms: number): string {
+  const d = new Date(ms)
+  return `${dateStrOf(ms)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 function daysSince(ms: number): number {
   const [a, b] = [dateStrOf(ms), todayStr()].map((s) => new Date(s).getTime())
   return Math.round((b - a) / 86400000)
 }
 
-export function SettingsScreen({ navigate, session, onRefreshSession, lastBackupAt, examDate, dailyGoal, onExamDateChange, onDailyGoalChange, onExport, onImport }: Props) {
+export function SettingsScreen({ navigate, session, onRefreshSession, syncStatus, lastSyncedAt, pendingCount, onSyncNow, lastBackupAt, examDate, dailyGoal, onExamDateChange, onDailyGoalChange, onExport, onImport }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -140,6 +171,51 @@ export function SettingsScreen({ navigate, session, onRefreshSession, lastBackup
           {message}
         </p>
       )}
+
+      <SectionTitle>同期</SectionTitle>
+      <Card className="list-card">
+        <div className="row">
+          <div className="row-main">
+            <div className="row-title">他の端末と学習記録を同期</div>
+            <div className={`row-sub${syncFailed(syncStatus) ? ' text-ng' : ''}`} id="syncStatus">
+              {syncStatusText(syncStatus)}
+            </div>
+          </div>
+          <button
+            className="btn-small"
+            id="syncNowBtn"
+            onClick={onSyncNow}
+            disabled={syncStatus.state === 'syncing'}
+            type="button"
+          >
+            今すぐ同期
+          </button>
+        </div>
+        <div className="row">
+          <div className="row-main">
+            <div className="row-title">最終同期</div>
+          </div>
+          <span className="muted" id="lastSynced">
+            {lastSyncedAt === null ? '未実施' : formatDateTime(lastSyncedAt)}
+          </span>
+        </div>
+        <div className="row">
+          <div className="row-main">
+            <div className="row-title">未送信の解答</div>
+          </div>
+          <span className={pendingCount > 0 ? 'text-ng' : 'muted'} id="pendingCount">
+            {pendingCount}件
+          </span>
+        </div>
+        {syncStatus.state === 'expired' && (
+          <button className="row row-button" id="syncReloginBtn" onClick={relogin} type="button">
+            <div className="row-main">
+              <div className="row-title">ログインし直して同期を再開する</div>
+            </div>
+            <span aria-hidden="true">›</span>
+          </button>
+        )}
+      </Card>
 
       <SectionTitle>ログイン</SectionTitle>
       <Card className="list-card">
