@@ -23,6 +23,13 @@ describe('worker', () => {
     expect((await call('/api/me', {}, { 'Cf-Access-Jwt-Assertion': 'x.y.z' })).status).toBe(401)
   })
 
+  it('/api/login はログイン後にトップへ戻し、未ログインなら 401', async () => {
+    const res = await call('/api/login', { DEV_USER: 'dev@example.com' })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/')
+    expect((await call('/api/login')).status).toBe(401)
+  })
+
   it('未実装の /api/* は 404', async () => {
     expect((await call('/api/sync', { DEV_USER: 'dev@example.com' })).status).toBe(404)
   })

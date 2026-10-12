@@ -828,3 +828,17 @@ body {
 }
 
 .input-number { width: 72px; text-align: right; }
+
+/* ── ログイン切れの案内（Cloudflare Access） ── */
+.session-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--ng);
+  border-radius: var(--r-lg);
+  background: var(--ng-bg);
+}
+
+.session-banner .row-title { color: var(--ng); font-size: 0.9rem; }

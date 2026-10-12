@@ -28,6 +28,10 @@ export async function handleApi(request: Request, env: Env, pathname: string): P
   if (pathname === '/api/me' && request.method === 'GET') {
     return json({ user })
   }
+  // 再ログインの入口。Access のログインを通ってここに来たら、アプリのトップへ戻す
+  if (pathname === '/api/login' && request.method === 'GET') {
+    return new Response(null, { status: 302, headers: { Location: '/', 'Cache-Control': 'no-store' } })
+  }
   // /api/sync・/api/export は段階2-8で追加する
   return json({ error: 'not_found' }, 404)
 }

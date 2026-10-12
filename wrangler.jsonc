@@ -17,9 +17,10 @@
       "migrations_dir": "migrations"
     }
   ],
-  // Cloudflare Access（段階0-7）。設定したらチームドメインと AUD タグを入れる（秘密情報ではない）
+  // Cloudflare Access（段階0-7）。アプリ全体を保護し、Cloudflare アカウントでログインする。
+  // チームドメインと AUD タグは秘密情報ではない（Zero Trust → Access → Applications「jras」）
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "ACCESS_TEAM_DOMAIN": "https://murakiy1101.cloudflareaccess.com",
+    "ACCESS_AUD": "53da01364508ebf3041af0b31b32ab5e2b34338880f9a0c6e289da797cbdb5ed"
   }
 }

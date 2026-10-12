@@ -102,28 +102,21 @@ CREATE TABLE settings (
 
 | 項目 | 内容 |
 |---|---|
-| 保護する範囲 | `/api/*` だけ。アプリ本体と静的ファイルは保護しない（オフライン起動や Service Worker の更新を妨げないため） |
-| ログイン方法 | One-time PIN（自分のメールアドレスに届くコード）。許可するのは自分のメールアドレスのみ |
-| セッションの長さ | 長め（例：1か月）。切れたら設定画面に「再ログイン」を出す |
+| 保護する範囲 | **アプリ全体**（Access のアプリ「jras」、Workers の種類で jras の本番・プレビュー URL を指定）。2026-10-12 に `/api/*` だけの保護から変更した |
+| ログイン方法 | **Cloudflare アカウント**（hot-topics と同じ）。ポリシーは既存の「Cloudflare account members」（Allow）。Google Cloud は使わない |
+| セッションの長さ | 1か月 |
+| ログイン切れの扱い | Service Worker が保存済みの画面を返すので、アプリは開ける。止まるのは更新と同期だけ。起動時とオンライン復帰時に `/api/me` を確かめ、切れていればホームに案内を出す（`src/session.ts`） |
+| 再ログイン | ホームの案内か、設定の「ログインし直す」で `/api/login` を開く。Access のログインを経由し、Worker がトップへ戻す。Service Worker は `/api/` を横取りしない |
+| manifest | アプリ全体を保護しているため、`<link rel="manifest" crossorigin="use-credentials">` で Cookie を付けて取得する（`vite.config.ts` の `useCredentials`） |
 | Worker 側 | `Cf-Access-Jwt-Assertion` の JWT を、チームの公開鍵と AUD で検証し、メールアドレスを `user` として使う。ヘッダーをそのまま信用しない |
-| 設定値 | チームのドメインと AUD を `wrangler.jsonc` の `vars` に置く（秘密情報ではない） |
-
-**最初に検証すること**：iPhone のホーム画面版（standalone 表示）で、Access のログイン後にアプリへ戻り、`/api/*` 用の Cookie が保たれるか。ホーム画面版の Cookie は Safari と別に管理されるため、実機で確認する。
-
-**設定手順**（Cloudflare のダッシュボードで行う。コード側は実装済み：`worker/access.ts`）
-
-1. Zero Trust → Settings → Authentication で、ログイン方法に One-time PIN を有効にする。
-2. Zero Trust → Access → Applications で「Self-hosted」のアプリを追加する。ドメインは Worker のホスト名、パスは `api/*`。セッションの長さは 1 か月。
-3. ポリシーを1つ作る。Action は Allow、Include は Emails に自分のメールアドレスだけを入れる。
-4. 作ったアプリの「Application Audience (AUD) Tag」と、チームドメイン（`https://<チーム名>.cloudflareaccess.com`）を、`wrangler.jsonc` の `vars`（`ACCESS_AUD`・`ACCESS_TEAM_DOMAIN`）に入れてデプロイする。
-5. PC のブラウザで `/api/me` を開き、PIN でログインして `{"user":"<メールアドレス>"}` が返ることを確かめる。
+| 設定値 | `wrangler.jsonc` の `vars`：`ACCESS_TEAM_DOMAIN`＝`https://murakiy1101.cloudflareaccess.com`、`ACCESS_AUD`＝アプリ「jras」の AUD タグ（秘密情報ではない） |
 
 **iPhone での確認手順**
 
-1. Safari でアプリを開き、ホーム画面に追加する（すでに追加済みなら、そのまま使う）。
-2. ホーム画面のアプリから「設定」→「サーバーとの接続」の「確認」を押す。最初は「ログインしていません」になる。
-3. ログイン画面をアプリの中で開く方法を確かめる（段階2-9で再ログインの導線を作るときの前提になる）。
-   - 試すこと：アプリ内のリンクで `/api/me` を開く → PIN でログイン → アプリに戻って「確認」を押すと「ログイン中」になるか。
+1. Safari で https://jras.murakiy1101.workers.dev を開き、Cloudflare アカウントでログインしてからホーム画面に追加する（追加済みなら、そのまま開く）。
+2. ホーム画面のアプリで「設定」→「ログイン」を見て、「ログイン中：<メールアドレス>」になっているか確かめる。
+3. 「ログインし直す」を押し、ログイン画面が出て、終わるとアプリに戻るか確かめる。
+   - 戻った後に「確認」を押すと「ログイン中」になるか。
    - アプリを一度終了して開き直しても「ログイン中」のままか。
 4. 結果をこの節に書く。通らなければ、下の代替案（トークン方式）にする。
 
