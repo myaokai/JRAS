@@ -297,6 +297,18 @@ async function playAnaume(page) {
       check('本番形式: 履歴に40問のセットが残る', (await text(page, '#kakomonHistoryList .history-entry')).includes('/40'));
       check('過去問: 間違えた問題タブに件数が出る', /間違えた問題 \d+/.test(await text(page, '#kakomonTab')));
 
+      // 行政法規の解説（実データ。根拠は条文で示し、基準へのリンクは出さない）
+      await page.click('#formatSelect [data-value="exam"]');
+      await page.click('#realExamList input[value="R07_gyosei"]');
+      await page.click('#startBtn');
+      await page.waitForSelector('#quizScreen');
+      await page.click('.choice-btn');
+      const gyosei = await text(page, '#explanation');
+      check('解説: 行政法規に条文つきの解説が出る', gyosei.includes('正解は4') && gyosei.includes('土地基本法'), gyosei.slice(0, 60));
+      check('解説: 行政法規には基準リンクが出ない', !(await page.$('#explanation .kijun-link')));
+      await page.$eval('#explanation', (el) => el.scrollIntoView({ block: 'start' }));
+      await shot(page, '07-gyosei-explanation');
+
       // 試験日と1日の目標
       await page.goto(BASE_URL + '/#/');
       await page.waitForSelector('#homeScreen');
